@@ -1,0 +1,25 @@
+[package]
+name = "tarugit"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["Leonardo Gonzalo Laura"]
+edition = "2021"
+
+[lib]
+name = "tarugit_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+git2 = "0.18.3"
+dirs = "5.0.1"
+log = "0.4.30"
+simple_logger = "4.3.3"
+
