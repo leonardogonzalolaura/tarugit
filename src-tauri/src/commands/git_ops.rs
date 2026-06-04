@@ -2,6 +2,19 @@ use git2::{Repository, StatusOptions, IndexAddOption, Signature, Commit};
 use std::path::Path;
 use tauri::command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+fn create_git_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("git");
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 // ─── Structs ──────────────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize, Debug)]
@@ -31,6 +44,30 @@ pub struct CommitInfo {
     pub author: String,
 }
 
+#[derive(serde::Serialize, Debug)]
+pub struct ConflictData {
+    pub ours: String,
+    pub theirs: String,
+    pub base: String,
+    pub raw: String,
+}
+
+#[derive(serde::Serialize, Debug)]
+pub struct FileDiffInfo {
+    pub path: String,
+    pub diff: String,
+    pub additions: i32,
+    pub deletions: i32,
+}
+
+#[derive(serde::Serialize, Debug)]
+pub struct RepoState {
+    pub is_rebasing: bool,
+    pub is_merging: bool,
+    pub is_cherry_picking: bool,
+    pub current_operation: Option<String>,
+}
+
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 #[command]
@@ -40,7 +77,8 @@ pub fn open_repository(path: String) -> Result<RepoInfo, String> {
     match Repository::open(repo_path) {
         Ok(repo) => {
             log::info!("Repositorio abierto correctamente");
-            get_repo_info(&repo)
+            // Pasar false como has_pending_operation inicial
+            get_repo_info(&repo, false)
         }
         Err(e) => {
             log::error!("Error abriendo repositorio: {}", e);
@@ -59,7 +97,7 @@ pub fn clone_repository(url: String, path: String) -> Result<RepoInfo, String> {
     match Repository::clone(&url, repo_path) {
         Ok(repo) => {
             log::info!("Clonado exitoso");
-            get_repo_info(&repo)
+            get_repo_info(&repo, false)
         }
         Err(e) => {
             log::error!("Error clonando: {}", e);
@@ -71,17 +109,55 @@ pub fn clone_repository(url: String, path: String) -> Result<RepoInfo, String> {
 #[command]
 pub fn get_repo_status(repo_path: String) -> Result<RepoInfo, String> {
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    get_repo_info(&repo)
+    
+    // Detectar si hay operación en curso (rebase, merge, cherry-pick)
+    let git_dir = repo.path().to_path_buf();
+    let is_cherry_picking = git_dir.join("CHERRY_PICK_HEAD").exists();
+    let is_rebasing = git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists();
+    let is_merging = git_dir.join("MERGE_HEAD").exists();
+    
+    let has_pending_operation = is_cherry_picking || is_rebasing || is_merging;
+    
+    // Si hay cherry-pick en curso, también verificar el archivo CHERRY_PICK_HEAD
+    if is_cherry_picking {
+        log::info!("Cherry-pick en curso detectado");
+    }
+    
+    get_repo_info(&repo, has_pending_operation)
 }
 
-#[derive(serde::Serialize, Debug)]
-pub struct ConflictData {
-    pub ours: String,
-    pub theirs: String,
-    pub base: String,
+#[command]
+pub fn get_repo_state(repo_path: String) -> Result<RepoState, String> {
+    log::info!("Obteniendo estado del repositorio: {}", repo_path);
+    
+    let git_dir = format!("{}/.git", repo_path);
+    
+    let is_rebasing = std::path::Path::new(&format!("{}/rebase-merge", git_dir)).exists()
+        || std::path::Path::new(&format!("{}/rebase-apply", git_dir)).exists();
+    
+    let is_merging = std::path::Path::new(&format!("{}/MERGE_HEAD", git_dir)).exists();
+    
+    let is_cherry_picking = std::path::Path::new(&format!("{}/CHERRY_PICK_HEAD", git_dir)).exists();
+    
+    let current_operation = if is_rebasing {
+        Some("rebase".to_string())
+    } else if is_merging {
+        Some("merge".to_string())
+    } else if is_cherry_picking {
+        Some("cherry-pick".to_string())
+    } else {
+        None
+    };
+    
+    Ok(RepoState {
+        is_rebasing,
+        is_merging,
+        is_cherry_picking,
+        current_operation,
+    })
 }
 
-fn get_repo_info(repo: &Repository) -> Result<RepoInfo, String> {
+fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoInfo, String> {
     let current_branch = match repo.head() {
         Ok(head) => head.shorthand().unwrap_or("detached").to_string(),
         Err(_) => "no-commits".to_string(),
@@ -91,13 +167,15 @@ fn get_repo_info(repo: &Repository) -> Result<RepoInfo, String> {
     opts.include_ignored(false);
     opts.include_untracked(true);
     opts.recurse_untracked_dirs(true);
-    let files = match repo.statuses(Some(&mut opts)) {
+    
+    let mut files = match repo.statuses(Some(&mut opts)) {
         Ok(statuses) => {
             let mut file_list = Vec::new();
             for entry in statuses.iter() {
                 let status = entry.status();
                 let path = entry.path().unwrap_or("").to_string();
                 let status_str = if status.is_conflicted() {
+                    log::info!("Archivo en conflicto detectado por status: {}", path);
                     "conflicted".to_string()
                 } else if status.is_index_new() || status.is_wt_new() {
                     "untracked".to_string()
@@ -117,7 +195,78 @@ fn get_repo_info(repo: &Repository) -> Result<RepoInfo, String> {
             Vec::new()
         }
     };
+    
+    // Si hay una operación pendiente, verificar también archivos con conflicto en el índice
+    if has_pending_operation {
+        if let Ok(index) = repo.index() {
+            log::info!("Verificando índice en busca de conflictos...");
+            for entry in index.iter() {
+                let path = String::from_utf8_lossy(&entry.path).to_string();
+                
+                // Verificar si el archivo tiene stages múltiples (1,2,3)
+                let has_conflict_stages = index.get_path(Path::new(&path), 1).is_some()
+                    || index.get_path(Path::new(&path), 2).is_some()
+                    || index.get_path(Path::new(&path), 3).is_some();
+                
+                if has_conflict_stages && !files.iter().any(|f| f.path == path) {
+                    log::info!("Archivo en conflicto encontrado en índice: {}", path);
+                    files.push(FileStatus { 
+                        path, 
+                        status: "conflicted".to_string() 
+                    });
+                }
+            }
+        }
+        
+        // También verificar usando git status por si acaso
+        let git_dir = repo.path().to_path_buf();
+        let git_dir_str = git_dir.to_string_lossy().to_string();
+        let repo_parent = git_dir_str.replace("/.git", "").replace("\\.git", "");
+        
+        let output = create_git_command()
+            .args(["status", "--porcelain"])
+            .current_dir(&repo_parent)
+            .output();
+            
+        if let Ok(output) = output {
+            let status_output = String::from_utf8_lossy(&output.stdout);
+            for line in status_output.lines() {
+                if line.starts_with("UU") {
+                    let path = if line.len() > 3 { &line[3..] } else { "" };
+                    if !path.is_empty() && !files.iter().any(|f| f.path == path) {
+                        log::info!("Archivo en conflicto detectado por git status: {}", path);
+                        files.push(FileStatus { 
+                            path: path.to_string(), 
+                            status: "conflicted".to_string() 
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
     Ok(RepoInfo { current_branch, files, has_commits })
+}
+
+#[command]
+pub fn get_conflicted_files(repo_path: String) -> Result<Vec<String>, String> {
+    log::info!("Obteniendo archivos en conflicto en: {}", repo_path);
+    
+    let output = create_git_command()
+        .args(["diff", "--name-only", "--diff-filter=U"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git diff: {}", e))?;
+    
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    let files: Vec<String> = output_str
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+    
+    log::info!("Archivos en conflicto encontrados: {:?}", files);
+    Ok(files)
 }
 
 #[command]
@@ -125,7 +274,6 @@ pub fn get_conflict_stages(repo_path: String, file_path: String) -> Result<Confl
     log::info!("Obteniendo etapas de conflicto para: {}", file_path);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     
-    // Si el archivo en el workdir tiene marcas de conflicto <<<<<<< ======= >>>>>>>, enviamos el archivo en 'ours' y 'theirs'
     let workdir = repo.workdir().ok_or("No workdir")?;
     let full_path = workdir.join(&file_path);
     let mut raw_content = String::new();
@@ -155,12 +303,12 @@ pub fn get_conflict_stages(repo_path: String, file_path: String) -> Result<Confl
         }
     }
 
-    // Si tiene marcas de conflicto en disco, mandamos esa versión en 'base' para que el frontend parsee los bloques
-    if raw_content.contains("<<<<<<<") && raw_content.contains("=======") && raw_content.contains(">>>>>>>") {
-        base = raw_content;
+    if (ours.is_empty() && theirs.is_empty()) && 
+       (raw_content.contains("<<<<<<<") && raw_content.contains("=======") && raw_content.contains(">>>>>>>")) {
+        base = raw_content.clone();
     }
 
-    Ok(ConflictData { ours, theirs, base })
+    Ok(ConflictData { ours, theirs, base, raw: raw_content })
 }
 
 #[command]
@@ -168,17 +316,12 @@ pub fn resolve_conflict(repo_path: String, file_path: String, merged_text: Strin
     log::info!("Resolviendo conflicto para: {}", file_path);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     
-    // Escribir el resultado fusionado al disco
     let workdir = repo.workdir().ok_or("No workdir")?;
     let full_path = workdir.join(&file_path);
     std::fs::write(&full_path, merged_text).map_err(|e| e.to_string())?;
 
     let mut index = repo.index().map_err(|e| e.to_string())?;
-    
-    // Remover las marcas de conflicto (stages 1, 2 y 3) llamando a remove_path
     index.remove_path(Path::new(&file_path)).map_err(|e| e.to_string())?;
-    
-    // Agregar la versión limpia fusionada del disco (stage 0)
     index.add_path(Path::new(&file_path)).map_err(|e| e.to_string())?;
     index.write().map_err(|e| e.to_string())?;
 
@@ -188,13 +331,17 @@ pub fn resolve_conflict(repo_path: String, file_path: String, merged_text: Strin
 // ─── Commit ───────────────────────────────────────────────────────────────────
 
 #[command]
-pub fn commit_changes(repo_path: String, message: String) -> Result<String, String> {
+pub fn commit_changes(repo_path: String, message: String, author_name: Option<String>, author_email: Option<String>) -> Result<String, String> {
     log::info!("Haciendo commit en: {} con mensaje: {}", repo_path, message);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     let mut index = repo.index().map_err(|e| e.to_string())?;
     index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None).map_err(|e| e.to_string())?;
     index.write().map_err(|e| e.to_string())?;
-    let signature = Signature::now("Git Editor User", "user@example.com").map_err(|e| e.to_string())?;
+    
+    let name = author_name.unwrap_or_else(|| "Git Editor User".to_string());
+    let email = author_email.unwrap_or_else(|| "user@example.com".to_string());
+    let signature = Signature::now(&name, &email).map_err(|e| e.to_string())?;
+    
     let tree_id = index.write_tree().map_err(|e| e.to_string())?;
     let tree = repo.find_tree(tree_id).map_err(|e| e.to_string())?;
     let parent_commit = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
@@ -212,7 +359,6 @@ pub fn discard_changes(repo_path: String, file_path: String) -> Result<String, S
     log::info!("Descartando cambios en: {}", file_path);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
 
-    // Verificar si el archivo está tracked en HEAD (tiene historial)
     let is_tracked = repo.head()
         .ok()
         .and_then(|h| h.peel_to_tree().ok())
@@ -220,14 +366,12 @@ pub fn discard_changes(repo_path: String, file_path: String) -> Result<String, S
         .is_some();
 
     if is_tracked {
-        // Archivo tracked: restaurar desde HEAD (git checkout HEAD -- <file>)
         let mut checkout_opts = git2::build::CheckoutBuilder::new();
         checkout_opts.path(file_path.as_str());
         checkout_opts.force();
         repo.checkout_head(Some(&mut checkout_opts))
             .map_err(|e| format!("Error al restaurar archivo: {}", e))?;
     } else {
-        // Archivo untracked / nuevo: eliminarlo del disco
         let workdir = repo.workdir().ok_or("No workdir")?;
         let full_path = workdir.join(&file_path);
         if full_path.is_file() {
@@ -275,7 +419,6 @@ pub fn get_file_diff(repo_path: String, file_path: String) -> Result<String, Str
     }
 }
 
-/// Retorna el diff de un commit específico comparando con su padre
 #[command]
 pub fn get_commit_diff(repo_path: String, commit_id: String) -> Result<String, String> {
     log::info!("Obteniendo diff del commit: {}", commit_id);
@@ -285,7 +428,6 @@ pub fn get_commit_diff(repo_path: String, commit_id: String) -> Result<String, S
     let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
     let commit_tree = commit.tree().map_err(|e| e.to_string())?;
 
-    // Tree del padre (si existe)
     let parent_tree = if commit.parent_count() > 0 {
         let parent = commit.parent(0).map_err(|e| e.to_string())?;
         Some(parent.tree().map_err(|e| e.to_string())?)
@@ -315,6 +457,125 @@ pub fn get_commit_diff(repo_path: String, commit_id: String) -> Result<String, S
     } else {
         Ok(diff_text)
     }
+}
+
+#[command]
+pub fn get_commit_diff_structured(repo_path: String, commit_id: String) -> Result<Vec<FileDiffInfo>, String> {
+    log::info!("Obteniendo diff estructurado del commit: {}", commit_id);
+    
+    // Run a single git command to get all diffs instead of spawning a process per file
+    let diff_output = create_git_command()
+        .args(["show", "--format=", "--unified=3", &commit_id])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git show: {}", e))?;
+        
+    let diff_content = String::from_utf8_lossy(&diff_output.stdout);
+    
+    let mut result = Vec::new();
+    let mut current_file = String::new();
+    let mut current_diff = String::new();
+    let mut additions = 0;
+    let mut deletions = 0;
+    
+    for line in diff_content.lines() {
+        if line.starts_with("diff --git ") {
+            // Save the previous file's diff if it exists
+            if !current_file.is_empty() {
+                result.push(FileDiffInfo {
+                    path: current_file.clone(),
+                    diff: current_diff.clone(),
+                    additions,
+                    deletions,
+                });
+            }
+            
+            current_diff.clear();
+            additions = 0;
+            deletions = 0;
+            
+            // Extract the filename. Format is "diff --git a/path b/path"
+            let path_part = &line["diff --git ".len()..];
+            // Handle quotes for files with spaces
+            if path_part.starts_with('"') {
+                if let Some(end_quote) = path_part[1..].find('"') {
+                    let a_path = &path_part[1..=end_quote];
+                    // The b_path will start after `a_path" "b/`
+                    let b_path_marker = format!("\" \"b/");
+                    if let Some(b_idx) = path_part.find(&b_path_marker) {
+                        let b_start = b_idx + b_path_marker.len() - 2; // Keep 'b/'
+                        if let Some(b_end) = path_part[b_start + 1..].find('"') {
+                            current_file = path_part[b_start + 2..b_start + 1 + b_end].to_string();
+                        }
+                    }
+                }
+            } else {
+                // If there's " b/", use it to split
+                if let Some(b_idx) = path_part.rfind(" b/") {
+                    current_file = path_part[b_idx + 3..].to_string();
+                } else {
+                    current_file = path_part.to_string(); // Fallback
+                }
+            }
+            
+            current_diff.push_str(line);
+            current_diff.push('\n');
+        } else {
+            if !current_file.is_empty() {
+                if line.starts_with('+') && !line.starts_with("+++") {
+                    additions += 1;
+                } else if line.starts_with('-') && !line.starts_with("---") {
+                    deletions += 1;
+                }
+                current_diff.push_str(line);
+                current_diff.push('\n');
+            }
+        }
+    }
+    
+    // Add the last file
+    if !current_file.is_empty() {
+        result.push(FileDiffInfo {
+            path: current_file,
+            diff: current_diff,
+            additions,
+            deletions,
+        });
+    }
+    
+    log::info!("Se encontraron {} archivos modificados", result.len());
+    Ok(result)
+}
+
+#[command]
+pub fn push_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+    log::info!("Haciendo push de la rama {} en {}", branch_name, repo_path);
+    
+    let output = create_git_command()
+        .args(["push", "-u", "origin", &branch_name])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git push: {}", e))?;
+        
+    if output.status.success() {
+        Ok("Push completado con éxito".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Error en git push:\n{}", stderr))
+    }
+}
+
+#[command]
+pub fn get_commit_timestamp(repo_path: String, commit_id: String) -> Result<i64, String> {
+    let output = create_git_command()
+        .args(["show", "-s", "--format=%ct", &commit_id])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error obteniendo timestamp: {}", e))?;
+    
+    let timestamp_str = String::from_utf8_lossy(&output.stdout);
+    let timestamp = timestamp_str.trim().parse::<i64>().unwrap_or(0);
+    Ok(timestamp)
 }
 
 #[command]
@@ -367,13 +628,11 @@ pub fn list_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
     Ok(branches)
 }
 
-/// Retorna "DIRTY" si hay cambios sin commitear, de lo contrario cambia la rama
 #[command]
 pub fn switch_branch(repo_path: String, branch_name: String) -> Result<RepoInfo, String> {
     log::info!("Cambiando a rama: {}", branch_name);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
 
-    // Verificar si el working tree está sucio
     let mut status_opts = StatusOptions::new();
     status_opts.include_untracked(true);
     status_opts.include_ignored(false);
@@ -388,10 +647,9 @@ pub fn switch_branch(repo_path: String, branch_name: String) -> Result<RepoInfo,
     let obj = repo.revparse_single(&ref_name).map_err(|e| e.to_string())?;
     repo.checkout_tree(&obj, None).map_err(|e| format!("Error en checkout: {}", e))?;
     repo.set_head(&ref_name).map_err(|e| format!("Error actualizando HEAD: {}", e))?;
-    get_repo_info(&repo)
+    get_repo_info(&repo, false)
 }
 
-/// Fuerza el cambio de rama trayendo los cambios no commiteados
 #[command]
 pub fn switch_branch_force(repo_path: String, branch_name: String) -> Result<RepoInfo, String> {
     log::info!("Forzando cambio a rama: {}", branch_name);
@@ -402,11 +660,11 @@ pub fn switch_branch_force(repo_path: String, branch_name: String) -> Result<Rep
     let obj = repo.revparse_single(&ref_name).map_err(|e| e.to_string())?;
 
     let mut checkout_opts = git2::build::CheckoutBuilder::new();
-    checkout_opts.safe(); // Preserva cambios locales al hacer checkout
+    checkout_opts.safe();
     repo.checkout_tree(&obj, Some(&mut checkout_opts))
         .map_err(|e| format!("Error en checkout: {}", e))?;
     repo.set_head(&ref_name).map_err(|e| format!("Error actualizando HEAD: {}", e))?;
-    get_repo_info(&repo)
+    get_repo_info(&repo, false)
 }
 
 #[command]
@@ -439,7 +697,7 @@ pub fn delete_branch(repo_path: String, branch_name: String) -> Result<String, S
 #[command]
 pub fn checkout_remote_branch(repo_path: String, branch_name: String) -> Result<String, String> {
     log::info!("Creando tracking local para rama remota: {} en {}", branch_name, repo_path);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["checkout", "-t", &branch_name])
         .current_dir(&repo_path)
         .output()
@@ -457,37 +715,47 @@ pub fn checkout_remote_branch(repo_path: String, branch_name: String) -> Result<
 
 // ─── History ──────────────────────────────────────────────────────────────────
 
+#[derive(serde::Serialize, Debug)]
+pub struct CommitInfoWithTimestamp {
+    pub id: String,
+    pub message: String,
+    pub author: String,
+    pub timestamp: i64,
+}
+
 #[command]
-pub fn get_commit_history(repo_path: String) -> Result<Vec<CommitInfo>, String> {
-    log::info!("Obteniendo historial en: {}", repo_path);
+pub fn get_commit_history_with_timestamp(repo_path: String) -> Result<Vec<CommitInfoWithTimestamp>, String> {
+    log::info!("Obteniendo historial con timestamp en: {}", repo_path);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
     
-    // Si no hay commits, retornar historial vacío en lugar de crashear
     if revwalk.push_head().is_err() {
         return Ok(Vec::new());
     }
     
     revwalk.set_sorting(git2::Sort::TIME).map_err(|e| e.to_string())?;
     let mut history = Vec::new();
+    
     for oid_result in revwalk {
         if let Ok(oid) = oid_result {
             if let Ok(commit) = repo.find_commit(oid) {
-                history.push(CommitInfo {
+                history.push(CommitInfoWithTimestamp {
                     id: oid.to_string(),
                     message: commit.message().unwrap_or("").trim().to_string(),
                     author: commit.author().name().unwrap_or("Unknown").to_string(),
+                    timestamp: commit.time().seconds(),
                 });
             }
         }
     }
+    log::info!("Se encontraron {} commits", history.len());
     Ok(history)
 }
 
 #[command]
 pub fn merge_branches(repo_path: String, branch_name: String) -> Result<String, String> {
     log::info!("Fusionando rama {} en actual", branch_name);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["merge", &branch_name])
         .current_dir(&repo_path)
         .output()
@@ -504,7 +772,7 @@ pub fn merge_branches(repo_path: String, branch_name: String) -> Result<String, 
 #[command]
 pub fn rebase_branches(repo_path: String, branch_name: String) -> Result<String, String> {
     log::info!("Haciendo rebase sobre la rama {}", branch_name);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["rebase", &branch_name])
         .current_dir(&repo_path)
         .output()
@@ -521,17 +789,47 @@ pub fn rebase_branches(repo_path: String, branch_name: String) -> Result<String,
 #[command]
 pub fn cherry_pick_commit(repo_path: String, commit_id: String) -> Result<String, String> {
     log::info!("Aplicando cherry-pick del commit {}", commit_id);
-    let output = std::process::Command::new("git")
+    
+    let git_dir = format!("{}/.git", repo_path);
+    if std::path::Path::new(&format!("{}/CHERRY_PICK_HEAD", git_dir)).exists() {
+        return Err("CHERRY_PICK_IN_PROGRESS: Ya hay un cherry-pick en curso. Resuelve los conflictos o aborta primero.".to_string());
+    }
+    
+    let output = create_git_command()
         .args(["cherry-pick", &commit_id])
         .current_dir(&repo_path)
         .output()
         .map_err(|e| e.to_string())?;
+    
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    
     if output.status.success() {
         Ok(stdout)
     } else {
-        Err(format!("Error en cherry-pick:\n{}\n{}", stdout, stderr))
+        if stderr.contains("CONFLICT") || stderr.contains("conflict") || stdout.contains("CONFLICT") {
+            let status_output = create_git_command()
+                .args(["status", "--porcelain"])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| e.to_string())?;
+            
+            let status = String::from_utf8_lossy(&status_output.stdout);
+            let conflicted_files: Vec<&str> = status
+                .lines()
+                .filter(|line| line.starts_with("UU") || line.contains("both modified"))
+                .map(|line| {
+                    if line.len() > 3 { &line[3..] } else { line }
+                })
+                .collect();
+            
+            if !conflicted_files.is_empty() {
+                return Err(format!("CONFLICT: Cherry-pick generó conflictos en los siguientes archivos:\n{}", conflicted_files.join("\n")));
+            }
+            Err(format!("CONFLICT: Error en cherry-pick:\n{}", stderr))
+        } else {
+            Err(format!("Error en cherry-pick:\n{}", stderr))
+        }
     }
 }
 
@@ -540,8 +838,7 @@ pub fn cherry_pick_commit(repo_path: String, commit_id: String) -> Result<String
 #[command]
 pub fn rebase_continue(repo_path: String) -> Result<String, String> {
     log::info!("Continuando rebase en: {}", repo_path);
-    // Primero agregamos todos los archivos al índice (equivalente a git add -A)
-    let add_output = std::process::Command::new("git")
+    let add_output = create_git_command()
         .args(["add", "-A"])
         .current_dir(&repo_path)
         .output()
@@ -550,9 +847,9 @@ pub fn rebase_continue(repo_path: String) -> Result<String, String> {
         let stderr = String::from_utf8_lossy(&add_output.stderr).to_string();
         return Err(format!("Error al preparar archivos: {}", stderr));
     }
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["rebase", "--continue"])
-        .env("GIT_EDITOR", "true") // Evita que abra un editor interactivo
+        .env("GIT_EDITOR", "true")
         .current_dir(&repo_path)
         .output()
         .map_err(|e| e.to_string())?;
@@ -568,7 +865,7 @@ pub fn rebase_continue(repo_path: String) -> Result<String, String> {
 #[command]
 pub fn rebase_abort(repo_path: String) -> Result<String, String> {
     log::info!("Abortando rebase en: {}", repo_path);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["rebase", "--abort"])
         .current_dir(&repo_path)
         .output()
@@ -585,7 +882,7 @@ pub fn rebase_abort(repo_path: String) -> Result<String, String> {
 #[command]
 pub fn merge_abort(repo_path: String) -> Result<String, String> {
     log::info!("Abortando merge en: {}", repo_path);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["merge", "--abort"])
         .current_dir(&repo_path)
         .output()
@@ -602,7 +899,7 @@ pub fn merge_abort(repo_path: String) -> Result<String, String> {
 #[command]
 pub fn cherry_pick_continue(repo_path: String) -> Result<String, String> {
     log::info!("Continuando cherry-pick en: {}", repo_path);
-    let add_output = std::process::Command::new("git")
+    let add_output = create_git_command()
         .args(["add", "-A"])
         .current_dir(&repo_path)
         .output()
@@ -611,7 +908,7 @@ pub fn cherry_pick_continue(repo_path: String) -> Result<String, String> {
         let stderr = String::from_utf8_lossy(&add_output.stderr).to_string();
         return Err(format!("Error al preparar archivos: {}", stderr));
     }
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["cherry-pick", "--continue"])
         .env("GIT_EDITOR", "true")
         .current_dir(&repo_path)
@@ -629,7 +926,7 @@ pub fn cherry_pick_continue(repo_path: String) -> Result<String, String> {
 #[command]
 pub fn cherry_pick_abort(repo_path: String) -> Result<String, String> {
     log::info!("Abortando cherry-pick en: {}", repo_path);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["cherry-pick", "--abort"])
         .current_dir(&repo_path)
         .output()
@@ -652,9 +949,8 @@ pub fn squash_commits(repo_path: String, count: usize, message: String) -> Resul
         return Err("Se necesitan al menos 2 commits para hacer squash".to_string());
     }
     
-    // git reset --soft HEAD~N
     let reset_arg = format!("HEAD~{}", count);
-    let output = std::process::Command::new("git")
+    let output = create_git_command()
         .args(["reset", "--soft", &reset_arg])
         .current_dir(&repo_path)
         .output()
@@ -665,8 +961,7 @@ pub fn squash_commits(repo_path: String, count: usize, message: String) -> Resul
         return Err(format!("Error en reset para squash:\n{}", stderr));
     }
     
-    // git commit -m "message"
-    let commit_output = std::process::Command::new("git")
+    let commit_output = create_git_command()
         .args(["commit", "-m", &message])
         .current_dir(&repo_path)
         .output()
@@ -677,5 +972,26 @@ pub fn squash_commits(repo_path: String, count: usize, message: String) -> Resul
     } else {
         let stderr = String::from_utf8_lossy(&commit_output.stderr).to_string();
         Err(format!("Error al crear commit de squash:\n{}", stderr))
+    }
+}
+
+#[command]
+pub fn fetch_remote_branches(repo_path: String) -> Result<String, String> {
+    log::info!("Actualizando ramas remotas en: {}", repo_path);
+    
+    let output = create_git_command()
+        .args(["fetch", "--all", "--prune"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error al hacer fetch: {}", e))?;
+    
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    
+    if output.status.success() {
+        log::info!("Fetch completado exitosamente");
+        Ok(stdout)
+    } else {
+        Err(format!("Error en fetch: {}", stderr))
     }
 }

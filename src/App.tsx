@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { RepoInfo, ActivePanel } from './types';
 import { Navbar } from './components/Navbar';
-import { RepoManager } from './components/RepoManager';
+import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager';
 import { FileList } from './components/FileList';
 import { DiffViewer } from './components/DiffViewer';
 import { CommitPanel } from './components/CommitPanel';
 import { BranchManager } from './components/BranchManager';
-import { HistoryPanel } from './components/HistoryPanel';
-import { ConflictResolver } from './components/ConflictResolver';
+import { HistoryPanel } from './components/history/HistoryPanel';
+import { ConflictResolver } from './components/ConflictResolver/index';
+import { OperationStatusBar } from './components/OperationStatusBar';
 import './App.css';
 
 export type ConflictOperation = {
@@ -17,14 +18,41 @@ export type ConflictOperation = {
 };
 
 function App() {
-  const [repoPath, setRepoPath]     = useState('');
-  const [repoInfo, setRepoInfo]     = useState<RepoInfo | null>(null);
-  const [loading, setLoading]       = useState(false);
+  const [, setRefreshTrigger] = useState(0);
+  const [repoPath, setRepoPath] = useState('');
+  const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
+  const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileDiff, setFileDiff]     = useState('');
+  const [fileDiff, setFileDiff] = useState('');
   const [activePanel, setActivePanel] = useState<ActivePanel>('diff');
 
   const [resolvingConflictFile, setResolvingConflictFile] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+
+  const [users, setUsers] = useState<{name: string; email: string}[]>(() => {
+    const saved = localStorage.getItem('tarugit_users');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [{ name: "Desarrollador 1", email: "dev1@empresa.com" }];
+  });
+
+  const handleAddUser = () => {
+    const name = prompt('Nombre del usuario (ej: Juan Pérez):');
+    if (!name) return;
+    const email = prompt('Correo del usuario (ej: juan@empresa.com):');
+    if (!email) return;
+    
+    const newUsers = [...users, { name, email }];
+    setUsers(newUsers);
+    localStorage.setItem('tarugit_users', JSON.stringify(newUsers));
+  };
+
+  const { sorted: savedRepos, addRepo, removeRepo } = useRepos(repoPath);
 
   // Contexto de la operación que generó conflictos (merge / rebase / cherry-pick)
   const [conflictOperation, setConflictOperation] = useState<ConflictOperation | null>(null);
@@ -41,7 +69,14 @@ function App() {
     try {
       const result = await invoke<RepoInfo>('get_repo_status', { repoPath });
       setRepoInfo(result);
-    } catch (_) {}
+    } catch (_) { }
+  };
+
+  const handleOperationAborted = async () => {
+    await refreshStatus();
+    setResolvingConflictFile(null);
+    setConflictOperation(null);
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // Abre un repositorio dado su path
@@ -79,10 +114,15 @@ function App() {
     }
   };
 
-  const makeCommit = async (message: string) => {
+  const makeCommit = async (message: string, user?: { name: string; email: string }) => {
     setLoading(true);
     try {
-      await invoke<string>('commit_changes', { repoPath, message });
+      await invoke<string>('commit_changes', { 
+        repoPath, 
+        message,
+        authorName: user?.name,
+        authorEmail: user?.email
+      });
       alert('✅ Commit realizado');
       await refreshStatus();
       setSelectedFile(null);
@@ -162,25 +202,57 @@ function App() {
         repoInfo={repoInfo}
         activePanel={activePanel}
         onPanelChange={setActivePanel}
+        repos={savedRepos}
+        activeRepoPath={repoPath}
+        onSelectRepo={(path) => openRepo(path)}
+        onRemoveRepo={removeRepo}
+        onAddRepo={() => setShowAddModal(true)}
+        onCloneRepo={() => setShowCloneModal(true)}
       />
 
-      <div className="layout">
-        {/* Columna izquierda: RepoManager + FileList + CommitPanel */}
-        <div className="left-col">
-          {/* Gestor de repositorios (reemplaza al Sidebar viejo) */}
-          <RepoManager
-            activeRepoPath={repoPath}
-            onSelectRepo={(path) => openRepo(path)}
-            onCloneRepo={cloneRepo}
-          />
+      {/* Modales de repositorio */}
+      {showAddModal && (
+        <AddRepoModal
+          onAdd={(path) => { addRepo(path); openRepo(path); setShowAddModal(false); }}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+      {showCloneModal && (
+        <CloneRepoModal
+          onClone={(url, path) => { cloneRepo(url, path); addRepo(path); setShowCloneModal(false); }}
+          onClose={() => setShowCloneModal(false)}
+        />
+      )}
 
-          {repoInfo && (
+      {/* Barra de estado de operación en curso */}
+      {repoPath && (
+        <OperationStatusBar
+          repoPath={repoPath}
+          onOperationAborted={handleOperationAborted}
+          onOperationContinued={() => {
+            refreshStatus();
+            setRefreshTrigger(prev => prev + 1);
+          }}
+        />
+      )}
+
+
+      <div className="layout">
+        {/* Columna izquierda colapsable */}
+        <div className={`left-col${sidebarCollapsed ? ' left-col--collapsed' : ''}`}>
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed(v => !v)}
+            title={sidebarCollapsed ? 'Expandir panel' : 'Colapsar panel'}
+          >
+            {sidebarCollapsed ? '›' : '‹'}
+          </button>
+
+          {!sidebarCollapsed && repoInfo && (
             <>
               <div className="file-section">
                 <div className="file-section-header">
-                  <span className="file-section-title">
-                    📁 Cambios pendientes
-                  </span>
+                  <span className="file-section-title">📁 Cambios pendientes</span>
                   <span className="file-section-count">{repoInfo.files.length}</span>
                 </div>
                 <FileList
@@ -191,11 +263,12 @@ function App() {
                   onDiscardFile={discardChanges}
                 />
               </div>
-
               <CommitPanel
                 fileCount={repoInfo.files.length}
                 loading={loading}
                 onCommit={makeCommit}
+                users={users}
+                onAddUser={handleAddUser}
               />
             </>
           )}
@@ -203,48 +276,49 @@ function App() {
 
         {/* Columna derecha: panel activo */}
         <div className="right-col">
-          {resolvingConflictFile ? (
-            <ConflictResolver
-              repoPath={repoPath}
-              filePath={resolvingConflictFile}
-              operationContext={conflictOperation ?? undefined}
-              onResolved={handleConflictResolved}
-              onCancel={() => {
-                setResolvingConflictFile(null);
-                setConflictOperation(null);
-              }}
+          {activePanel === 'diff' && (
+            <DiffViewer
+              selectedFile={selectedFile}
+              diffContent={fileDiff}
+              loading={loading}
+              onClose={() => { setSelectedFile(null); setFileDiff(''); }}
             />
-          ) : (
-            <>
-              {activePanel === 'diff' && (
-                <DiffViewer
-                  selectedFile={selectedFile}
-                  diffContent={fileDiff}
-                  loading={loading}
-                  onClose={() => { setSelectedFile(null); setFileDiff(''); }}
-                />
-              )}
-              {activePanel === 'branches' && repoInfo && (
-                <BranchManager
-                  repoPath={repoPath}
-                  currentBranch={repoInfo.current_branch}
-                  hasUncommittedChanges={repoInfo.files && repoInfo.files.length > 0}
-                  onBranchSwitch={handleBranchSwitch}
-                  onConflictOperation={(op) => handleConflictDetected(op)}
-                />
-              )}
-              {activePanel === 'history' && repoInfo && (
-                <HistoryPanel
-                  repoPath={repoPath}
-                  currentBranch={repoInfo.current_branch}
-                  onRefresh={handleBranchSwitch}
-                  onConflictOperation={(op) => handleConflictDetected(op)}
-                />
-              )}
-            </>
+          )}
+          {activePanel === 'branches' && repoInfo && (
+            <BranchManager
+              repoPath={repoPath}
+              currentBranch={repoInfo.current_branch}
+              hasUncommittedChanges={repoInfo.files && repoInfo.files.length > 0}
+              onBranchSwitch={handleBranchSwitch}
+              onConflictOperation={(op) => handleConflictDetected(op)}
+            />
+          )}
+          {activePanel === 'history' && repoInfo && (
+            <HistoryPanel
+              repoPath={repoPath}
+              currentBranch={repoInfo.current_branch}
+              onRefresh={handleBranchSwitch}
+              onConflictOperation={(op) => handleConflictDetected(op)}
+            />
           )}
         </div>
       </div>
+
+      {/* ConflictResolver como overlay full-screen */}
+      {resolvingConflictFile && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--bg-base)', display: 'flex', flexDirection: 'column' }}>
+          <ConflictResolver
+            repoPath={repoPath}
+            filePath={resolvingConflictFile}
+            operationContext={conflictOperation ?? undefined}
+            onResolved={handleConflictResolved}
+            onCancel={() => {
+              setResolvingConflictFile(null);
+              setConflictOperation(null);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

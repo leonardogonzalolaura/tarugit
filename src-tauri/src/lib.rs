@@ -25,7 +25,7 @@ pub fn run() {
             commands::git_ops::list_branches,
             commands::git_ops::switch_branch,
             commands::git_ops::switch_branch_force,
-            commands::git_ops::get_commit_history,
+            //commands::git_ops::get_commit_history,
             commands::git_ops::get_commit_diff,
             commands::git_ops::create_branch,
             commands::git_ops::delete_branch,
@@ -41,6 +41,13 @@ pub fn run() {
             commands::git_ops::merge_abort,
             commands::git_ops::cherry_pick_continue,
             commands::git_ops::cherry_pick_abort,
+            commands::git_ops::get_commit_timestamp,
+            commands::git_ops::get_commit_diff_structured,
+            commands::git_ops::get_repo_state,
+            commands::git_ops::get_conflicted_files,
+            commands::git_ops::get_commit_history_with_timestamp,
+            commands::git_ops::fetch_remote_branches,
+            commands::git_ops::push_branch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

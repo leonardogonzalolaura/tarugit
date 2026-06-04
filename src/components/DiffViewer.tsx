@@ -43,7 +43,9 @@ export function DiffViewer({ selectedFile, diffContent, loading, onClose }: Diff
   if (!selectedFile) {
     return (
       <div className="welcome-panel">
-        <div className="welcome-icon">🦀</div>
+        <div className="welcome-icon">
+          <span className="color: pink; font-size: 48px;">♉</span>
+        </div>
         <h2 className="welcome-title">Bienvenido a TaruGit</h2>
         <p className="welcome-sub">Selecciona un archivo para ver sus cambios</p>
         <div className="welcome-features">

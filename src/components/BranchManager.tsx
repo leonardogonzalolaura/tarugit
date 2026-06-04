@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { BranchInfo } from '../types';
 
@@ -15,6 +15,105 @@ type DirtyAction = 'carry' | 'cancel';
 interface DirtyModalProps {
   targetBranch: string;
   onChoice: (action: DirtyAction) => void;
+}
+
+interface CreateBranchModalProps {
+  branches: BranchInfo[];
+  currentBranch: string;
+  onCreate: (branchName: string, sourceBranch: string) => void;
+  onClose: () => void;
+}
+
+function CreateBranchModal({ branches, currentBranch, onCreate, onClose }: CreateBranchModalProps) {
+  const [branchName, setBranchName] = useState('');
+  const [sourceBranch, setSourceBranch] = useState(currentBranch);
+  const [creating, setCreating] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branchName.trim()) return;
+    setCreating(true);
+    try {
+      await onCreate(branchName.trim(), sourceBranch);
+      onClose();
+    } catch (error) {
+      // El error ya se maneja en el callback
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Filtrar solo ramas locales (sin incluir remotas)
+  const localBranches = branches.filter(b => !b.is_remote);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-icon">🌿</div>
+        <h3 className="modal-title">Crear Nueva Rama</h3>
+        <p className="modal-desc">Crea una rama a partir de otra existente:</p>
+
+        <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>
+              Nombre de la nueva rama
+            </label>
+            <input
+              ref={inputRef}
+              className="repo-input"
+              style={{ margin: 0, width: '100%' }}
+              placeholder="ejemplo: feature/nueva-funcionalidad"
+              value={branchName}
+              onChange={e => setBranchName(e.target.value)}
+              disabled={creating}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>
+              Crear desde la rama
+            </label>
+            <select
+              value={sourceBranch}
+              onChange={e => setSourceBranch(e.target.value)}
+              disabled={creating}
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+                background: 'var(--bg-base)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)',
+                cursor: 'pointer',
+              }}
+            >
+              {localBranches.map(branch => (
+                <option key={branch.name} value={branch.name}>
+                  {branch.name} {branch.name === currentBranch ? ' (actual)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="modal-actions" style={{ marginTop: '4px' }}>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={creating}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={creating || !branchName.trim()}>
+              {creating ? <span className="spinner-sm" style={{ marginRight: '6px' }} /> : '✨'} Crear Rama
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function DirtyModal({ targetBranch, onChoice }: DirtyModalProps) {
@@ -53,9 +152,7 @@ export function BranchManager({
   const [search, setSearch] = useState('');
   const [dirtyTarget, setDirtyTarget] = useState<string | null>(null);
 
-  const [newBranchName, setNewBranchName] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [expandedBranch, setExpandedBranch] = useState<string | null>(null);
   const [deletingBranch, setDeletingBranch] = useState<string | null>(null);
 
@@ -63,12 +160,43 @@ export function BranchManager({
     loadBranches();
   }, [repoPath, currentBranch]);
 
+  const handleFetchRemotes = async () => {
+    setLoading(true);
+    try {
+      // Mostrar mensaje de que está actualizando
+      const fetchPromise = invoke('fetch_remote_branches', { repoPath });
+
+      // Timeout opcional para no esperar demasiado
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 30000)
+      );
+
+      await Promise.race([fetchPromise, timeoutPromise]);
+
+      await loadBranches();
+      alert('✅ Ramas remotas actualizadas');
+    } catch (e) {
+      if (String(e).includes('Timeout')) {
+        alert('⚠️ La actualización está tomando más tiempo de lo normal. Las ramas se cargarán cuando termine.');
+        // Continuar en segundo plano
+        invoke('fetch_remote_branches', { repoPath }).finally(() => {
+          loadBranches();
+          alert('✅ Actualización completada en segundo plano');
+        });
+      } else {
+        alert(`Error al actualizar remotas: ${e}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
   const loadBranches = async () => {
     if (!repoPath) return;
     setLoading(true);
     try {
       const result = await invoke<BranchInfo[]>('list_branches', { repoPath });
       setBranches(result);
+      console.log('Ramas cargadas en BranchManager:', result);
     } catch (e) {
       console.error('Error cargando ramas:', e);
     } finally {
@@ -112,7 +240,7 @@ export function BranchManager({
     if (action === 'cancel') return;
     await doSwitch(target, true);
   };
-
+  /**
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBranchName.trim()) return;
@@ -130,7 +258,7 @@ export function BranchManager({
       setCreating(false);
     }
   };
-
+**/
   const handleDeleteBranch = async (branchName: string) => {
     if (branchName === currentBranch) {
       alert('❌ No puedes eliminar la rama activa. Cambia a otra rama primero.');
@@ -222,6 +350,21 @@ export function BranchManager({
     }
   };
 
+  const handlePushBranch = async (e: React.MouseEvent, name: string) => {
+    e.stopPropagation();
+    if (!confirm(`¿Deseas publicar la rama local "${name}" al repositorio remoto?`)) return;
+    setLoading(true);
+    try {
+      const result = await invoke<string>('push_branch', { repoPath, branchName: name });
+      alert(`✅ ${result}`);
+      await loadBranches();
+    } catch (err) {
+      alert(`⚠️ Error al hacer push de la rama:\n${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const local = branches.filter((b: BranchInfo) => !b.is_remote);
   const remote = branches.filter((b: BranchInfo) => b.is_remote);
 
@@ -235,6 +378,15 @@ export function BranchManager({
       )}
 
       <div className="panel-header">
+        <div className="panel-header-right">
+          <button
+            className="btn-icon"
+            onClick={handleFetchRemotes}
+            title="Actualizar ramas remotas (fetch)"
+          >
+            📡
+          </button>
+        </div>
         <h2 className="panel-title">🌿 Ramas</h2>
         <div className="panel-header-right">
           <button
@@ -248,34 +400,27 @@ export function BranchManager({
         </div>
       </div>
 
+      {/* Modal de creación de rama */}
       {showCreateForm && (
-        <form onSubmit={handleCreateBranch} className="create-branch-form" style={{
-          display: 'flex',
-          gap: '8px',
-          background: 'var(--bg-surface)',
-          padding: '10px',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          marginBottom: '10px'
-        }}>
-          <input
-            className="search-input"
-            style={{ flex: 1, margin: 0 }}
-            placeholder="Nombre de la nueva rama..."
-            value={newBranchName}
-            onChange={e => setNewBranchName(e.target.value)}
-            disabled={creating}
-            autoFocus
-          />
-          <button
-            type="submit"
-            className="btn-primary"
-            style={{ padding: '0 12px', fontSize: '12px' }}
-            disabled={creating || !newBranchName.trim()}
-          >
-            {creating ? '...' : 'Crear'}
-          </button>
-        </form>
+        <CreateBranchModal
+          branches={branches}
+          currentBranch={currentBranch}
+          onCreate={async (branchName, sourceBranch) => {
+            try {
+              await invoke('create_branch', { repoPath, branchName, sourceBranch });
+              await loadBranches();
+              // Opcional: cambiar automáticamente a la nueva rama
+              const shouldSwitch = confirm(`¿Deseas cambiar a la nueva rama "${branchName}"?`);
+              if (shouldSwitch) {
+                await doSwitch(branchName, false);
+              }
+              alert(`✅ Rama "${branchName}" creada exitosamente desde "${sourceBranch}"`);
+            } catch (e) {
+              alert(`Error al crear rama: ${e}`);
+            }
+          }}
+          onClose={() => setShowCreateForm(false)}
+        />
       )}
 
       <input
@@ -339,6 +484,28 @@ export function BranchManager({
                       {switching === branch.name && <span className="spinner-sm" />}
                       {deletingBranch === branch.name && <span style={{ fontSize: '11px', color: 'var(--yellow)' }}>eliminando...</span>}
                     </div>
+                    
+                    {branch.is_current && (
+                      <button
+                        onClick={(e) => handlePushBranch(e, branch.name)}
+                        title="Publicar / Hacer Push de la rama actual"
+                        style={{
+                          background: 'var(--accent)',
+                          border: 'none',
+                          color: 'white',
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        🚀 Push
+                      </button>
+                    )}
 
                     {!branch.is_current && (
                       <button

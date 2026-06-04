@@ -21,4 +21,6 @@ export interface CommitInfo {
   author: string;
 }
 
+
+
 export type ActivePanel = 'diff' | 'branches' | 'history';

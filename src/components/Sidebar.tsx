@@ -84,7 +84,7 @@ export function Sidebar({
 
       {!repoInfo && (
         <div className="sidebar-empty">
-          <span style={{ fontSize: 48 }}>🐮</span>
+          <span style={{ fontSize: 48 }}>♉</span>
           <p>Abre o clona un repositorio para comenzar</p>
         </div>
       )}

@@ -166,6 +166,41 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  transition: width 0.2s ease, min-width 0.2s ease;
+}
+
+.left-col--collapsed {
+  width: 28px;
+  min-width: 28px;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%) translateX(50%);
+  width: 20px;
+  height: 40px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.sidebar-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-dim);
 }
 
 /* ─── Sidebar ─────────────────────────────────────────────────────────────── */
@@ -829,7 +864,6 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none !important; 
 }
 
 .history-list-col {
-  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -837,8 +871,7 @@ button:disabled { opacity: .4; cursor: not-allowed; transform: none !important; 
 }
 
 .commit-diff-col {
-  width: 50%;
-  min-width: 350px;
+  min-width: 0;
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
