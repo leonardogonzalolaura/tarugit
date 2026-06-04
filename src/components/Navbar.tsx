@@ -13,7 +13,7 @@ interface NavbarProps {
   onCloneRepo: () => void;
 }
 
-export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepoPath, onSelectRepo, onRemoveRepo, onAddRepo, onCloneRepo }: NavbarProps) {
+export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepoPath, onSelectRepo, onAddRepo, onCloneRepo }: NavbarProps) {
   const activeRepo = repos.find(r => r.path === activeRepoPath);
   const sorted = [...repos].sort((a, b) => {
     if (a.path === activeRepoPath) return -1;
