@@ -31,25 +31,63 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCloneModal, setShowCloneModal] = useState(false);
 
-  const [users, setUsers] = useState<{name: string; email: string}[]>(() => {
+  //Modal create user
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+
+  const [users, setUsers] = useState<{ name: string; email: string }[]>(() => {
     const saved = localStorage.getItem('tarugit_users');
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {}
+      } catch (e) { }
     }
-    return [{ name: "Desarrollador 1", email: "dev1@empresa.com" }];
+    return [{ name: "tauriGitUser", email: "tauriuser@gmail.com" }];
   });
 
   const handleAddUser = () => {
-    const name = prompt('Nombre del usuario (ej: Juan Pérez):');
-    if (!name) return;
-    const email = prompt('Correo del usuario (ej: juan@empresa.com):');
-    if (!email) return;
-    
-    const newUsers = [...users, { name, email }];
+    // Limpiar los campos del formulario
+    setNewUserName('');
+    setNewUserEmail('');
+    // Abrir el modal
+    setShowUserModal(true);
+  };
+
+  // Función para guardar el nuevo usuario
+  const saveNewUser = () => {
+    // Validar que no estén vacíos
+    if (!newUserName.trim()) {
+      alert('⚠️ El nombre es obligatorio');
+      return;
+    }
+
+    if (!newUserEmail.trim()) {
+      alert('⚠️ El correo es obligatorio');
+      return;
+    }
+
+    // Validar formato básico de email
+    if (!newUserEmail.includes('@') || !newUserEmail.includes('.')) {
+      alert('⚠️ Ingresa un correo válido (ej: usuario@empresa.com)');
+      return;
+    }
+
+    // Crear el nuevo usuario
+    const newUsers = [...users, {
+      name: newUserName.trim(),
+      email: newUserEmail.trim()
+    }];
+
+    // Actualizar el estado y guardar en localStorage
     setUsers(newUsers);
     localStorage.setItem('tarugit_users', JSON.stringify(newUsers));
+
+    // Cerrar el modal
+    setShowUserModal(false);
+
+    // Opcional: Mostrar mensaje de éxito
+    // alert('✅ Usuario agregado correctamente');
   };
 
   const { sorted: savedRepos, addRepo, removeRepo } = useRepos(repoPath);
@@ -117,8 +155,8 @@ function App() {
   const makeCommit = async (message: string, user?: { name: string; email: string }) => {
     setLoading(true);
     try {
-      await invoke<string>('commit_changes', { 
-        repoPath, 
+      await invoke<string>('commit_changes', {
+        repoPath,
         message,
         authorName: user?.name,
         authorEmail: user?.email
@@ -236,6 +274,65 @@ function App() {
         />
       )}
 
+      {/* Modal para agregar usuario */}
+      {showUserModal && (
+        <div className="modal-backdrop" onClick={() => setShowUserModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px' }}>
+
+            <h3 className="modal-title">Agregar usuario</h3>
+            <p className="modal-desc">Ingresa los datos del autor para los commits</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <input
+                type="text"
+                placeholder="Nombre completo"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && saveNewUser()}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--font-sans)'
+                }}
+              />
+
+              <input
+                type="email"
+                placeholder="Correo electrónico"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveNewUser()}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--bg-base)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--font-sans)'
+                }}
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowUserModal(false)}>
+                Cancelar
+              </button>
+              <button className="btn-primary" onClick={saveNewUser}>
+                Agregar usuario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <div className="layout">
         {/* Columna izquierda colapsable */}
@@ -319,6 +416,8 @@ function App() {
           />
         </div>
       )}
+
+
     </div>
   );
 }

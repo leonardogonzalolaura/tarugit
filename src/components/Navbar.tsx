@@ -43,7 +43,7 @@ export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepo
               fontSize: '12px',
               fontFamily: 'var(--font-mono)',
               cursor: 'pointer',
-              width: '220px',
+              width: '320px',
               outline: 'none'
             }}
           >
@@ -55,13 +55,13 @@ export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepo
             ))}
           </select>
 
-          {activeRepo && (
+          {/*activeRepo && (
             <button
               onClick={() => onRemoveRepo(activeRepo.id)}
               title="Quitar de la lista"
               style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', padding: '5px 8px', borderRadius: '5px', fontSize: '12px', lineHeight: 1 }}
             >✕</button>
-          )}
+          )*/}
           <button
             onClick={onAddRepo}
             title="Agregar repositorio"
