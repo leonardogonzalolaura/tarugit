@@ -184,6 +184,14 @@ export function BranchSelector({
     await doSwitch(name, false);
   };
 
+  const getLocalNameFromRemote = (remoteName: string): string => {
+    const parts = remoteName.split('/');
+    if (parts[0] === 'remotes') {
+      return parts.slice(2).join('/');
+    }
+    return parts.slice(1).join('/');
+  };
+
   const doSwitch = async (name: string, force: boolean) => {
     // Mostrar estado de carga inmediatamente
     setSwitchingBranch(name);
@@ -193,7 +201,21 @@ export function BranchSelector({
     try {
       const targetBranchInfo = branches.find(b => b.name === name);
       if (targetBranchInfo?.is_remote) {
-        await invoke('checkout_remote_branch', { repoPath, branchName: name });
+        const localName = getLocalNameFromRemote(name);
+        const localExists = branches.some(b => !b.is_remote && b.name === localName);
+        
+        if (localExists) {
+          const cmd = force ? 'switch_branch_force' : 'switch_branch';
+          await invoke(cmd, { repoPath, branchName: localName });
+          try {
+            await invoke('pull_branch', { repoPath, branchName: localName });
+            alert(`✅ Se cambió a la rama local "${localName}" y se actualizaron los cambios desde el remoto.`);
+          } catch (pullErr) {
+            alert(`⚠️ Se cambió a la rama "${localName}", pero no se pudieron traer los últimos cambios: ${pullErr}`);
+          }
+        } else {
+          await invoke('checkout_remote_branch', { repoPath, branchName: name });
+        }
       } else {
         const cmd = force ? 'switch_branch_force' : 'switch_branch';
         await invoke(cmd, { repoPath, branchName: name });
