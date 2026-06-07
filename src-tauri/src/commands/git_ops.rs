@@ -16,6 +16,12 @@ fn create_git_command() -> std::process::Command {
 }
 
 // ─── Structs ──────────────────────────────────────────────────────────────────
+#[derive(serde::Serialize, Debug)]
+pub struct GitRemoteStatus {
+    ahead: i32,
+    behind: i32,
+    has_remote: bool,
+}
 
 #[derive(serde::Serialize, Debug)]
 pub struct FileStatus {
@@ -548,16 +554,11 @@ pub fn get_commit_diff_structured(repo_path: String, commit_id: String) -> Resul
 }
 
 #[command]
-pub fn push_branch(repo_path: String, branch_name: String, force: Option<bool>) -> Result<String, String> {
-    log::info!("Haciendo push de la rama {} en {} (force: {:?})", branch_name, repo_path, force);
-    
-    let mut args = vec!["push".to_string(), "-u".to_string(), "origin".to_string(), branch_name];
-    if force.unwrap_or(false) {
-        args.push("--force".to_string());
-    }
+pub fn push_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+    log::info!("Haciendo push de la rama {} en {}", branch_name, repo_path);
     
     let output = create_git_command()
-        .args(&args)
+        .args(["push", "-u", "origin", &branch_name])
         .current_dir(&repo_path)
         .output()
         .map_err(|e| format!("Error ejecutando git push: {}", e))?;
@@ -569,27 +570,6 @@ pub fn push_branch(repo_path: String, branch_name: String, force: Option<bool>) 
         Err(format!("Error en git push:\n{}", stderr))
     }
 }
-
-#[command]
-pub fn pull_branch(repo_path: String, branch_name: String) -> Result<String, String> {
-    log::info!("Haciendo pull de la rama {} en {}", branch_name, repo_path);
-    
-    let output = create_git_command()
-        .args(["pull", "origin", &branch_name])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Error ejecutando git pull: {}", e))?;
-        
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    
-    if output.status.success() {
-        Ok(format!("Pull completado con éxito:\n{}", stdout))
-    } else {
-        Err(format!("Error en git pull:\n{}", stderr))
-    }
-}
-
 
 #[command]
 pub fn get_commit_timestamp(repo_path: String, commit_id: String) -> Result<i64, String> {
@@ -1162,4 +1142,73 @@ pub fn drop_stash(repo_path: String, stash_id: String) -> Result<String, String>
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         Err(format!("Error al eliminar stash:\n{}", stderr))
     }
-}
+}
+
+#[command]
+pub fn git_status_remote(repo_path: String, branch_name: String) -> Result<GitRemoteStatus, String> {
+    log::info!("Obteniendo estado remoto para branch {} en: {}", branch_name, repo_path);
+    
+    // Verificar si existe algún remoto configurado
+    let remote_check = create_git_command()
+        .args(["remote"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error verificando remotos: {}", e))?;
+    
+    let has_remote = !String::from_utf8_lossy(&remote_check.stdout).trim().is_empty();
+    
+    if !has_remote {
+        log::info!("No hay remotos configurados en el repositorio");
+        return Ok(GitRemoteStatus {
+            ahead: 0,
+            behind: 0,
+            has_remote: false,
+        });
+    }
+    
+    // Verificar si la rama tiene upstream configurado
+    let upstream_check = create_git_command()
+        .args(["rev-parse", "--abbrev-ref", &format!("{0}@{{u}}", branch_name)])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error verificando upstream: {}", e))?;
+    
+    if !upstream_check.status.success() {
+        log::info!("La rama {} no tiene upstream configurado", branch_name);
+        return Ok(GitRemoteStatus {
+            ahead: 0,
+            behind: 0,
+            has_remote: true,
+        });
+    }
+    
+    // Obtener la diferencia entre local y remoto usando rev-list
+    // El formato de salida de rev-list --count --left-right es: "<ahead>\t<behind>"
+    let diff_output = create_git_command()
+        .args(["rev-list", "--count", "--left-right", &format!("{}...{}@{{u}}", branch_name, branch_name)])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error obteniendo diferencia de commits: {}", e))?;
+    
+    let output_str = String::from_utf8_lossy(&diff_output.stdout);
+    let parts: Vec<&str> = output_str.trim().split('\t').collect();
+    
+    let (ahead, behind) = if parts.len() >= 2 {
+        let ahead_str = parts[0].trim_start_matches('<').trim();
+        let behind_str = parts[1].trim_start_matches('>').trim();
+        (
+            ahead_str.parse::<i32>().unwrap_or(0),
+            behind_str.parse::<i32>().unwrap_or(0),
+        )
+    } else {
+        (0, 0)
+    };
+    
+    log::info!("Estado remoto - ahead: {}, behind: {}", ahead, behind);
+    
+    Ok(GitRemoteStatus {
+        ahead,
+        behind,
+        has_remote: true,
+    })
+}
