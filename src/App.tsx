@@ -15,6 +15,7 @@ import { OperationStatusBar } from './components/OperationStatusBar';
 import { Footer } from './components/Footer';
 import { StashPanel } from './components/StashPanel';
 import { CreateStashModal } from './components/CreateStashModal';
+import { ToastContainer } from './components/Toast';
 import './App.css';
 
 export type ConflictOperation = {
@@ -291,6 +292,7 @@ function App() {
 
   return (
     <div className="app">
+      <ToastContainer />
       <Navbar
         repoInfo={repoInfo}
         repos={savedRepos}
