@@ -11,10 +11,7 @@ interface BranchSelectorProps {
   onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
 }
 
-interface DirtyModalProps {
-  targetBranch: string;
-  onChoice: (action: DirtyAction) => void;
-}
+type DirtyAction = 'carry' | 'cancel'; // Esto faltaba
 
 interface CreateBranchModalProps {
   branches: BranchInfo[];
@@ -41,7 +38,7 @@ function CreateBranchModal({ branches, currentBranch, onCreate, onClose }: Creat
       await onCreate(branchName.trim(), sourceBranch);
       onClose();
     } catch (error) {
-      // El error ya se maneja en el callback
+      console.error(error);
     } finally {
       setCreating(false);
     }
@@ -188,6 +185,7 @@ export function BranchSelector({
       setIsOpen(false);
       await loadBranches();
     } catch (e) {
+      console.error('Error en switch:', e);
       const errStr = String(e);
       if (errStr === 'DIRTY_WORKING_TREE') {
         setDirtyTarget(name);
@@ -208,6 +206,7 @@ export function BranchSelector({
       setIsOpen(false);
       await loadBranches();
     } catch (err) {
+      console.error('Error en merge:', err);
       const errStr = String(err);
       if (errStr.toLowerCase().includes('conflict')) {
         onConflictOperation?.({ type: 'merge' });
@@ -231,6 +230,7 @@ export function BranchSelector({
       setIsOpen(false);
       await loadBranches();
     } catch (err) {
+      console.error('Error en rebase:', err);
       const errStr = String(err);
       if (errStr.toLowerCase().includes('conflict')) {
         onConflictOperation?.({ type: 'rebase' });
@@ -245,86 +245,99 @@ export function BranchSelector({
     }
   };
 
+  const handleCreateBranch = async (branchName: string, sourceBranch: string) => {
+    try {
+      await invoke('create_branch', { repoPath, branchName, sourceBranch });
+      await loadBranches();
+      const shouldSwitch = confirm(`¿Deseas cambiar a la nueva rama "${branchName}"?`);
+      if (shouldSwitch) {
+        await doSwitch(branchName, false);
+      }
+      alert(`✅ Rama "${branchName}" creada exitosamente`);
+      setShowCreateForm(false);
+    } catch (e) {
+      alert(`Error al crear rama: ${e}`);
+      throw e;
+    }
+  };
 
   const localBranches = branches.filter(b => !b.is_remote);
   const filteredBranches = search 
     ? localBranches.filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
     : localBranches;
 
-  const DirtyModal = () => (
-    <div className="branch-dirty-modal">
-      <div className="branch-dirty-content">
-        <div className="branch-dirty-icon">⚠️</div>
-        <h4>Cambios sin commitear</h4>
-        <p>¿Qué deseas hacer al cambiar a <strong>{dirtyTarget}</strong>?</p>
-        <div className="branch-dirty-actions">
-          <button onClick={() => {
-            setDirtyTarget(null);
-            setIsOpen(false);
-          }}>Cancelar</button>
-          <button onClick={async () => {
-            const target = dirtyTarget!;
-            setDirtyTarget(null);
-            await doSwitch(target, true);
-          }}>🚀 Llevar cambios</button>
+  // Modales como componentes inline para evitar problemas de contexto
+  const renderDirtyModal = () => {
+    if (!dirtyTarget) return null;
+    return (
+      <div className="branch-dirty-modal">
+        <div className="branch-dirty-content">
+          <div className="branch-dirty-icon">⚠️</div>
+          <h4>Cambios sin commitear</h4>
+          <p>¿Qué deseas hacer al cambiar a <strong>{dirtyTarget}</strong>?</p>
+          <div className="branch-dirty-actions">
+            <button onClick={() => {
+              setDirtyTarget(null);
+              setIsOpen(false);
+            }}>Cancelar</button>
+            <button onClick={async () => {
+              const target = dirtyTarget;
+              setDirtyTarget(null);
+              if (target) await doSwitch(target, true);
+            }}>🚀 Llevar cambios</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  const MergeModal = () => (
-    <div className="branch-action-modal">
-      <div className="branch-action-content">
-        <h4>🔀 Fusionar rama</h4>
-        <p>Fusionar <strong>{selectedBranchForAction}</strong> en <strong>{currentBranch}</strong></p>
-        <div className="branch-action-actions">
-          <button onClick={() => setShowMergeModal(false)}>Cancelar</button>
-          <button onClick={() => selectedBranchForAction && handleMerge(selectedBranchForAction)}>
-            Confirmar Merge
-          </button>
+  const renderMergeModal = () => {
+    if (!showMergeModal) return null;
+    return (
+      <div className="branch-action-modal">
+        <div className="branch-action-content">
+          <h4>🔀 Fusionar rama</h4>
+          <p>Fusionar <strong>{selectedBranchForAction}</strong> en <strong>{currentBranch}</strong></p>
+          <div className="branch-action-actions">
+            <button onClick={() => setShowMergeModal(false)}>Cancelar</button>
+            <button onClick={() => selectedBranchForAction && handleMerge(selectedBranchForAction)}>
+              Confirmar Merge
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  const RebaseModal = () => (
-    <div className="branch-action-modal">
-      <div className="branch-action-content">
-        <h4>🔄 Rebase</h4>
-        <p>Rebase de <strong>{currentBranch}</strong> sobre <strong>{selectedBranchForAction}</strong></p>
-        <div className="branch-action-actions">
-          <button onClick={() => setShowRebaseModal(false)}>Cancelar</button>
-          <button onClick={() => selectedBranchForAction && handleRebase(selectedBranchForAction)}>
-            Confirmar Rebase
-          </button>
+  const renderRebaseModal = () => {
+    if (!showRebaseModal) return null;
+    return (
+      <div className="branch-action-modal">
+        <div className="branch-action-content">
+          <h4>🔄 Rebase</h4>
+          <p>Rebase de <strong>{currentBranch}</strong> sobre <strong>{selectedBranchForAction}</strong></p>
+          <div className="branch-action-actions">
+            <button onClick={() => setShowRebaseModal(false)}>Cancelar</button>
+            <button onClick={() => selectedBranchForAction && handleRebase(selectedBranchForAction)}>
+              Confirmar Rebase
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
-      {dirtyTarget && <DirtyModal />}
-      {showMergeModal && <MergeModal />}
-      {showRebaseModal && <RebaseModal />}
+      {renderDirtyModal()}
+      {renderMergeModal()}
+      {renderRebaseModal()}
       
-            {showCreateForm && (
+      {showCreateForm && (
         <CreateBranchModal
           branches={branches}
           currentBranch={currentBranch}
-          onCreate={async (branchName, sourceBranch) => {
-            try {
-              await invoke('create_branch', { repoPath, branchName, sourceBranch });
-              await loadBranches();
-              const shouldSwitch = confirm(`¿Deseas cambiar a la nueva rama "${branchName}"?`);
-              if (shouldSwitch) {
-                await doSwitch(branchName, false);
-              }
-              alert(`✅ Rama "${branchName}" creada exitosamente`);
-            } catch (e) {
-              alert(`Error al crear rama: ${e}`);
-            }
-          }}
+          onCreate={handleCreateBranch}
           onClose={() => setShowCreateForm(false)}
         />
       )}
@@ -355,8 +368,12 @@ export function BranchSelector({
 
             <div className="branch-selector-actions">
               <button 
-              onClick={() => setShowCreateForm(true)}
-              className="branch-selector-action-btn">
+                onClick={() => {
+                  setShowCreateForm(true);
+                  setIsOpen(false);
+                }}
+                className="branch-selector-action-btn"
+              >
                 ✨ Crear nueva rama
               </button>
             </div>
@@ -368,56 +385,62 @@ export function BranchSelector({
                 </div>
               ) : (
                 <>
-                  {filteredBranches.map(branch => (
-                    <div key={branch.name} className="branch-selector-item">
-                      <div 
-                        className={`branch-selector-item-main ${branch.name === currentBranch ? 'current' : ''}`}
-                        onClick={() => handleSwitch(branch.name)}
-                      >
-                        <div className="branch-selector-item-info">
-                          <span className="branch-selector-item-icon">
-                            {branch.name === currentBranch ? '●' : '○'}
-                          </span>
-                          <span className="branch-selector-item-name">{branch.name}</span>
-                          {branch.name === currentBranch && (
-                            <span className="branch-selector-item-badge">actual</span>
-                          )}
-                          {switching === branch.name && (
-                            <span className="spinner-sm" />
-                          )}
-                        </div>
-                      </div>
-                      
-                      {branch.name !== currentBranch && (
-                        <div className="branch-selector-item-actions">
-                          <button
-                            className="branch-action-icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedBranchForAction(branch.name);
-                              setShowMergeModal(true);
-                              setIsOpen(false);
-                            }}
-                            title="Fusionar en rama actual"
-                          >
-                            🔀
-                          </button>
-                          <button
-                            className="branch-action-icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedBranchForAction(branch.name);
-                              setShowRebaseModal(true);
-                              setIsOpen(false);
-                            }}
-                            title="Rebase sobre rama actual"
-                          >
-                            🔄
-                          </button>
-                        </div>
-                      )}
+                  {filteredBranches.length === 0 ? (
+                    <div className="branch-selector-empty">
+                      No se encontraron ramas
                     </div>
-                  ))}
+                  ) : (
+                    filteredBranches.map(branch => (
+                      <div key={branch.name} className="branch-selector-item">
+                        <div 
+                          className={`branch-selector-item-main ${branch.name === currentBranch ? 'current' : ''}`}
+                          onClick={() => handleSwitch(branch.name)}
+                        >
+                          <div className="branch-selector-item-info">
+                            <span className="branch-selector-item-icon">
+                              {branch.name === currentBranch ? '●' : '○'}
+                            </span>
+                            <span className="branch-selector-item-name">{branch.name}</span>
+                            {branch.name === currentBranch && (
+                              <span className="branch-selector-item-badge">actual</span>
+                            )}
+                            {switching === branch.name && (
+                              <span className="spinner-sm" />
+                            )}
+                          </div>
+                        </div>
+                        
+                        {branch.name !== currentBranch && (
+                          <div className="branch-selector-item-actions">
+                            <button
+                              className="branch-action-icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBranchForAction(branch.name);
+                                setShowMergeModal(true);
+                                setIsOpen(false);
+                              }}
+                              title="Fusionar en rama actual"
+                            >
+                              🔀
+                            </button>
+                            <button
+                              className="branch-action-icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBranchForAction(branch.name);
+                                setShowRebaseModal(true);
+                                setIsOpen(false);
+                              }}
+                              title="Rebase sobre rama actual"
+                            >
+                              🔄
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </>
               )}
             </div>
