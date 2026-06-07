@@ -36,9 +36,9 @@
   --hunk:         #7c6af7;
   --hunk-bg:      rgba(124,106,247,.10);
 
-  --radius-sm:    6px;
-  --radius-md:    10px;
-  --radius-lg:    14px;
+  --radius-sm:    5px;
+  --radius-md:    8px;
+  --radius-lg:    12px;
 
   --shadow-sm:    0 1px 4px rgba(0,0,0,.4);
   --shadow-md:    0 4px 16px rgba(0,0,0,.5);
@@ -47,8 +47,9 @@
   --font-sans:    'Inter', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', 'Courier New', monospace;
 
-  --sidebar-w:    300px;
-  --navbar-h:     52px;
+  --sidebar-w:    260px;
+  --navbar-h:     44px;
+  --footer-h:     24px;
 }
 
 html, body, #root {
@@ -57,7 +58,7 @@ html, body, #root {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -85,8 +86,8 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  gap: 16px;
+  padding: 0 14px;
+  gap: 12px;
   z-index: 10;
 }
 
@@ -96,10 +97,10 @@ html, body, #root {
   gap: 10px;
 }
 
-.navbar-logo { font-size: 22px; }
+.navbar-logo { font-size: 18px; }
 
 .navbar-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -.3px;
@@ -172,8 +173,8 @@ html, body, #root {
 }
 
 .left-col--collapsed {
-  width: 28px;
-  min-width: 28px;
+  width: 24px;
+  min-width: 24px;
 }
 
 .sidebar-toggle {
@@ -216,11 +217,11 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px 6px;
+  padding: 7px 12px 5px;
 }
 
 .file-section-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: .5px;
   text-transform: uppercase;
@@ -257,8 +258,8 @@ html, body, #root {
 .file-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 7px;
+  padding: 5px 9px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: 1px solid transparent;
@@ -306,7 +307,7 @@ html, body, #root {
 
 .file-name {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-primary);
   white-space: nowrap;
@@ -331,7 +332,7 @@ html, body, #root {
 
 /* ─── Commit Panel ────────────────────────────────────────────────────────── */
 .commit-panel {
-  padding: 12px;
+  padding: 10px;
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
 }
@@ -391,13 +392,13 @@ html, body, #root {
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   transition: all .15s;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 7px 13px;
+  padding: 5px 11px;
 }
 
 .btn-primary {
@@ -1542,3 +1543,241 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ─── Left Panel Tabs (Changes / History) ─────────────────────────────────── */
+.left-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.left-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+
+.left-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.left-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+
+.left-tab-badge {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  line-height: 1.4;
+}
+
+/* ─── Left History Container (compact mode) ───────────────────────────────── */
+.left-history {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* En compact mode el history-layout ocupa toda la columna en vertical */
+.left-history .history-layout {
+  flex-direction: column !important;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* La lista de commits ocupa todo el ancho y alto disponible */
+.left-history .history-list-col {
+  width: 100% !important;
+  flex: 1 !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* El listado de commits tiene scroll propio */
+.left-history .commit-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0 6px 8px;
+}
+
+/* Cabecera del panel compacta */
+.left-history .panel-header {
+  padding: 7px 10px 5px !important;
+}
+
+.left-history .panel-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.left-history .search-input {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+/* Commits compactos en el panel izquierdo */
+.left-history .commit-item {
+  padding: 6px 8px;
+  gap: 6px;
+}
+
+.left-history .commit-message {
+  font-size: 11px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.left-history .commit-hash {
+  font-size: 10px !important;
+}
+
+.left-history .commit-date {
+  font-size: 9px !important;
+}
+
+.left-history .commit-author {
+  font-size: 9px !important;
+}
+
+.left-history .commit-row-top {
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+
+/* ─── App Footer ──────────────────────────────────────────────────────────── */
+.app-footer {
+  height: var(--footer-h);
+  min-height: var(--footer-h);
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  gap: 8px;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.footer-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.footer-left  { justify-content: flex-start; }
+.footer-center { justify-content: center; flex: 0 0 auto; }
+.footer-right { justify-content: flex-end; }
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.footer-icon {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.footer-repo-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.footer-branch {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.footer-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.footer-dot--green {
+  background: var(--green);
+  box-shadow: 0 0 4px var(--green);
+}
+
+.footer-dot--yellow {
+  background: var(--yellow);
+  box-shadow: 0 0 4px var(--yellow);
+}
+
+.footer-separator {
+  color: var(--border-light);
+  font-size: 12px;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: .3px;
+}
+
+.footer-brand-icon {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.footer-git-version {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0px 5px;
+}
+
+.footer-time-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: .5px;
+}

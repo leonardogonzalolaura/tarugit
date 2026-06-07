@@ -1,11 +1,9 @@
-import { RepoInfo, ActivePanel } from '../types';
+import { RepoInfo } from '../types';
 import { SavedRepo } from './RepoManager';
 import { BranchSelector } from './BranchSelector';
 
 interface NavbarProps {
   repoInfo: RepoInfo | null;
-  activePanel: ActivePanel;
-  onPanelChange: (panel: ActivePanel) => void;
   repos: SavedRepo[];
   activeRepoPath: string;
   onSelectRepo: (path: string) => void;
@@ -19,8 +17,6 @@ interface NavbarProps {
 
 export function Navbar({ 
   repoInfo, 
-  activePanel, 
-  onPanelChange, 
   repos, 
   activeRepoPath, 
   onSelectRepo, 
@@ -95,16 +91,6 @@ export function Navbar({
         )}
       </div>
 
-      {repoInfo && (
-        <nav className="navbar-tabs">
-          <button
-            className={`tab-btn ${activePanel === 'history' ? 'active' : ''}`}
-            onClick={() => onPanelChange('history')}
-          >
-            <span>🕓</span> Historial
-          </button>
-        </nav>
-      )}
     </div>
   );
 }

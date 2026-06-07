@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { RepoInfo, ActivePanel } from './types';
+import { RepoInfo } from './types';
 import { Navbar } from './components/Navbar';
 import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager';
 import { FileList } from './components/FileList';
 import { DiffViewer } from './components/DiffViewer';
 import { CommitPanel } from './components/CommitPanel';
 import { BranchManager } from './components/BranchManager';
-import { HistoryPanel } from './components/history/HistoryPanel';
+import { HistoryPanel, ExtendedCommitInfo } from './components/history/HistoryPanel';
+import { FileDiffViewer } from './components/history/FileDiffViewer';
+import { formatDate } from './components/history/utils';
 import { ConflictResolver } from './components/ConflictResolver/index';
 import { OperationStatusBar } from './components/OperationStatusBar';
+import { Footer } from './components/Footer';
 import './App.css';
 
 export type ConflictOperation = {
@@ -24,7 +27,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState('');
-  const [activePanel, setActivePanel] = useState<ActivePanel>('diff');
+  // 'changes' | 'history' — tab del panel izquierdo
+  const [leftTab, setLeftTab] = useState<'changes' | 'history'>('changes');
+  // 'diff' | 'branches' — panel derecho
+  const [activePanel, setActivePanel] = useState<'diff' | 'branches'>('diff');
+  // Commit seleccionado desde el historial (modo compacto)
+  const [selectedCommitInfo, setSelectedCommitInfo] = useState<ExtendedCommitInfo | null>(null);
+  const [commitFileDiffs, setCommitFileDiffs] = useState<{ path: string; diff: string; additions: number; deletions: number }[]>([]);
 
   const [resolvingConflictFile, setResolvingConflictFile] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -114,6 +123,7 @@ function App() {
       setSelectedFile(null);
       setFileDiff('');
       setActivePanel('diff');
+      setLeftTab('changes');
       setResolvingConflictFile(null);
       setConflictOperation(null);
     } catch (e) {
@@ -236,8 +246,6 @@ function App() {
     <div className="app">
       <Navbar
         repoInfo={repoInfo}
-        activePanel={activePanel}
-        onPanelChange={setActivePanel}
         repos={savedRepos}
         activeRepoPath={repoPath}
         onSelectRepo={(path) => openRepo(path)}
@@ -341,33 +349,104 @@ function App() {
 
           {!sidebarCollapsed && repoInfo && (
             <>
-              <div className="file-section">
-                <div className="file-section-header">
-                  <span className="file-section-title">📁 Cambios pendientes</span>
-                  <span className="file-section-count">{repoInfo.files.length}</span>
-                </div>
-                <FileList
-                  files={repoInfo.files}
-                  selectedFile={selectedFile}
-                  loading={loading}
-                  onSelectFile={viewDiff}
-                  onDiscardFile={discardChanges}
-                />
+              {/* Tabs Changes / History */}
+              <div className="left-tabs">
+                <button
+                  className={`left-tab-btn${leftTab === 'changes' ? ' active' : ''}`}
+                  onClick={() => setLeftTab('changes')}
+                >
+                  Cambios
+                  {repoInfo.files.length > 0 && (
+                    <span className="left-tab-badge">{repoInfo.files.length}</span>
+                  )}
+                </button>
+                <button
+                  className={`left-tab-btn${leftTab === 'history' ? ' active' : ''}`}
+                  onClick={() => setLeftTab('history')}
+                >
+                  Historial
+                </button>
               </div>
-              <CommitPanel
-                fileCount={repoInfo.files.length}
-                loading={loading}
-                onCommit={makeCommit}
-                users={users}
-                onAddUser={handleAddUser}
-              />
+
+              {leftTab === 'changes' && (
+                <>
+                  <div className="file-section">
+                    <FileList
+                      files={repoInfo.files}
+                      selectedFile={selectedFile}
+                      loading={loading}
+                      onSelectFile={viewDiff}
+                      onDiscardFile={discardChanges}
+                    />
+                  </div>
+                  <CommitPanel
+                    fileCount={repoInfo.files.length}
+                    loading={loading}
+                    onCommit={makeCommit}
+                    users={users}
+                    onAddUser={handleAddUser}
+                  />
+                </>
+              )}
+
+              {leftTab === 'history' && (
+                <div className="left-history">
+                  <HistoryPanel
+                    repoPath={repoPath}
+                    currentBranch={repoInfo.current_branch}
+                    onRefresh={handleBranchSwitch}
+                    onConflictOperation={(op) => handleConflictDetected(op)}
+                    compactMode
+                    onCommitSelect={(commit, diffs) => {
+                      setSelectedCommitInfo(commit);
+                      setCommitFileDiffs(diffs);
+                    }}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
 
         {/* Columna derecha: panel activo */}
         <div className="right-col">
-          {activePanel === 'diff' && (
+          {/* Historial: diff del commit seleccionado */}
+          {leftTab === 'history' && (
+            selectedCommitInfo ? (
+              <div className="diff-panel">
+                <div className="diff-header">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="diff-file-path" style={{ fontWeight: 600, marginBottom: 2 }}>
+                      {selectedCommitInfo.message.split('\n')[0]}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', gap: 12 }}>
+                      <span>{selectedCommitInfo.id.slice(0, 12)}</span>
+                      <span>👤 {selectedCommitInfo.author}</span>
+                      <span>📅 {formatDate(selectedCommitInfo.timestamp)}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="btn-close"
+                    onClick={() => { setSelectedCommitInfo(null); setCommitFileDiffs([]); }}
+                  >✕</button>
+                </div>
+                <div className="diff-body" style={{ padding: '10px' }}>
+                  <FileDiffViewer fileDiffs={commitFileDiffs} loading={false} />
+                </div>
+              </div>
+            ) : (
+              <div className="diff-empty">
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>🕓</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>Selecciona un commit</div>
+                  <div style={{ fontSize: 11, marginTop: 4 }}>para ver sus cambios aquí</div>
+                </div>
+              </div>
+            )
+          )}
+
+          {/* Cambios: diff del archivo seleccionado */}
+          {leftTab === 'changes' && activePanel === 'diff' && (
             <DiffViewer
               selectedFile={selectedFile}
               diffContent={fileDiff}
@@ -377,20 +456,12 @@ function App() {
               onFileSaved={handleFileSaved}
             />
           )}
-          {activePanel === 'branches' && repoInfo && (
+          {leftTab === 'changes' && activePanel === 'branches' && repoInfo && (
             <BranchManager
               repoPath={repoPath}
               currentBranch={repoInfo.current_branch}
               hasUncommittedChanges={repoInfo.files && repoInfo.files.length > 0}
               onBranchSwitch={handleBranchSwitch}
-              onConflictOperation={(op) => handleConflictDetected(op)}
-            />
-          )}
-          {activePanel === 'history' && repoInfo && (
-            <HistoryPanel
-              repoPath={repoPath}
-              currentBranch={repoInfo.current_branch}
-              onRefresh={handleBranchSwitch}
               onConflictOperation={(op) => handleConflictDetected(op)}
             />
           )}
@@ -412,6 +483,12 @@ function App() {
           />
         </div>
       )}
+
+      <Footer
+        repoPath={repoPath}
+        currentBranch={repoInfo?.current_branch}
+        fileCount={repoInfo?.files?.length ?? 0}
+      />
     </div>
   );
 }

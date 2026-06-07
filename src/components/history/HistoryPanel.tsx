@@ -26,9 +26,12 @@ interface HistoryPanelProps {
   currentBranch: string;
   onRefresh?: () => void;
   onConflictOperation?: (op: { type: 'cherry-pick'; originalBranch: string }) => void;
+  /** Cuando es true, oculta el panel de diff interno y llama onCommitSelect */
+  compactMode?: boolean;
+  onCommitSelect?: (commit: ExtendedCommitInfo | null, fileDiffs: FileDiff[]) => void;
 }
 
-export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOperation }: HistoryPanelProps) {
+export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOperation, compactMode = false, onCommitSelect }: HistoryPanelProps) {
   const [commits, setCommits] = useState<ExtendedCommitInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -104,14 +107,17 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
     } catch (_) {}
   };
 
-  const loadCommitDiff = async (commitId: string) => {
+  const loadCommitDiff = async (commitId: string): Promise<FileDiff[]> => {
     setLoadingDiff(true);
     try {
       const result = await invoke<FileDiff[]>('get_commit_diff_structured', { repoPath, commitId });
-      setFileDiffs(result || []);
+      const diffs = result || [];
+      setFileDiffs(diffs);
+      return diffs;
     } catch (e) {
       console.error('Error cargando diff:', e);
       setFileDiffs([]);
+      return [];
     } finally {
       setLoadingDiff(false);
     }
@@ -121,10 +127,12 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
     if (selectedCommit === commit.id) {
       setSelectedCommit(null);
       setFileDiffs([]);
+      onCommitSelect?.(null, []);
       return;
     }
     setSelectedCommit(commit.id);
-    await loadCommitDiff(commit.id);
+    const diffs = await loadCommitDiff(commit.id);
+    onCommitSelect?.(commit, diffs ?? []);
   };
 
   const handleToggleSelection = (commitId: string) => {
@@ -223,15 +231,18 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         />
       )}
 
-      {/* Panel izquierdo: lista de commits */}
-      <div className="history-list-col" style={{ width: `${listWidth}%`, minWidth: 0, flex: 'none' }}>
-        <div className="panel-header" style={{ padding: '12px 16px 8px' }}>
+      {/* Panel de lista de commits */}
+      <div
+        className="history-list-col"
+        style={compactMode ? { width: '100%', flex: 1 } : { width: `${listWidth}%`, minWidth: 0, flex: 'none' }}
+      >
+        <div className="panel-header" style={{ padding: '8px 12px 6px' }}>
           <h2 className="panel-title">🕓 Historial</h2>
           <div className="panel-header-right" style={{ display: 'flex', gap: '6px' }}>
             {selectedCount > 0 && (
               <button
                 className="btn-primary"
-                style={{ padding: '4px 12px', fontSize: '11px' }}
+                style={{ padding: '3px 8px', fontSize: '10px' }}
                 onClick={() => setShowCherryModal(true)}
                 disabled={isApplyingCherryPick}
               >
@@ -242,8 +253,8 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
               <button
                 className={`btn-secondary ${showSquashForm ? 'active' : ''}`}
                 style={{ 
-                  padding: '4px 8px', 
-                  fontSize: '11px', 
+                  padding: '3px 6px', 
+                  fontSize: '10px', 
                   color: selectedCount >= 2 ? 'var(--yellow)' : 'var(--text-muted)', 
                   borderColor: selectedCount >= 2 ? 'rgba(251,191,36,0.2)' : 'transparent',
                   cursor: selectedCount >= 2 ? 'pointer' : 'not-allowed'
@@ -259,22 +270,18 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
                 💥 Squash {selectedCount >= 2 ? `(${selectedCount})` : ''}
               </button>
             )}
-            <span className="panel-badge">{commits.length} commits</span>
-            <button className="btn-icon" onClick={loadHistory} title="Recargar historial">↻</button>
+            <span className="panel-badge">{commits.length}</span>
+            <button className="btn-icon" onClick={loadHistory} title="Recargar">↻</button>
           </div>
         </div>
 
         {showSquashForm && (() => {
-          // Find the oldest selected commit's index to squash everything up to it
           let maxIdx = -1;
           commits.forEach((c, idx) => {
-            if (selectedCommits.has(c.id) && idx > maxIdx) {
-              maxIdx = idx;
-            }
+            if (selectedCommits.has(c.id) && idx > maxIdx) maxIdx = idx;
           });
           const count = maxIdx + 1;
           const commitsToSquash = commits.slice(0, count);
-
           return (
             <SquashForm
               commitsToSquash={commitsToSquash}
@@ -285,20 +292,19 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
           );
         })()}
 
-        <div style={{ padding: '0 12px 8px' }}>
+        <div style={{ padding: '0 10px 6px' }}>
           <input
             className="search-input"
-            placeholder="Buscar por mensaje, autor o hash..."
+            placeholder="Buscar commit, autor o hash..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           {selectedCount > 0 && (
-            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span>✓ {selectedCount} commit(s) seleccionado(s)</span>
-              <button className="btn-close" style={{ padding: '2px 6px', fontSize: '10px' }} onClick={() => setSelectedCommits(new Set())}>
+            <div style={{ marginTop: '6px', fontSize: '10px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span>✓ {selectedCount} seleccionado(s)</span>
+              <button className="btn-close" style={{ padding: '1px 5px', fontSize: '9px' }} onClick={() => setSelectedCommits(new Set())}>
                 Limpiar
               </button>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>(Click en checkbox para seleccionar)</span>
             </div>
           )}
         </div>
@@ -306,7 +312,7 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         {loading ? (
           <div className="panel-loading"><span className="spinner" /> Cargando...</div>
         ) : filtered.length === 0 ? (
-          <div className="panel-empty">{search ? 'Sin resultados' : 'No hay commits en esta rama'}</div>
+          <div className="panel-empty">{search ? 'Sin resultados' : 'No hay commits'}</div>
         ) : (
           <div className="commit-list">
             {filtered.map((commit, idx) => (
@@ -326,48 +332,45 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         )}
       </div>
 
-      {/* Divisor arrastrable — solo visible cuando hay commit seleccionado */}
-      {selectedCommit && (
-        <div
-          onMouseDown={onMouseDown}
-          style={{
-            width: '5px',
-            flexShrink: 0,
-            cursor: 'col-resize',
-            background: 'var(--border)',
-            transition: 'background 0.15s',
-            position: 'relative',
-            zIndex: 10,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
-          onMouseLeave={e => (e.currentTarget.style.background = isDragging.current ? 'var(--accent)' : 'var(--border)')}
-        />
-      )}
-
-      {/* Panel derecho: diff del commit seleccionado */}
-      {selectedCommit && (
-        <div className="commit-diff-col" style={{ flex: 1, minWidth: 0, width: 'auto' }}>
-          <div className="diff-header" style={{ padding: '12px 16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="diff-file-path" style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                  {selectedCommitData?.message.split('\n')[0]}
+      {/* Divisor y panel de diff — solo en modo NO compacto */}
+      {!compactMode && selectedCommit && (
+        <>
+          <div
+            onMouseDown={onMouseDown}
+            style={{
+              width: '5px',
+              flexShrink: 0,
+              cursor: 'col-resize',
+              background: 'var(--border)',
+              transition: 'background 0.15s',
+              position: 'relative',
+              zIndex: 10,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
+            onMouseLeave={e => (e.currentTarget.style.background = isDragging.current ? 'var(--accent)' : 'var(--border)')}
+          />
+          <div className="commit-diff-col" style={{ flex: 1, minWidth: 0, width: 'auto' }}>
+            <div className="diff-header" style={{ padding: '10px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="diff-file-path" style={{ fontWeight: 'bold', marginBottom: '3px' }}>
+                    {selectedCommitData?.message.split('\n')[0]}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {selectedCommitData?.id}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                    📅 {selectedCommitData ? formatDate(selectedCommitData.timestamp) : 'Fecha desconocida'}
+                  </div>
                 </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  {selectedCommitData?.id}
-                </div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  📅 {selectedCommitData ? formatDate(selectedCommitData.timestamp) : 'Fecha desconocida'}
-                </div>
+                <button className="btn-close" onClick={() => { setSelectedCommit(null); setFileDiffs([]); }} style={{ marginLeft: '10px' }}>✕</button>
               </div>
-              <button className="btn-close" onClick={() => { setSelectedCommit(null); setFileDiffs([]); }} style={{ marginLeft: '12px' }}>✕</button>
+            </div>
+            <div className="diff-body" style={{ padding: '10px' }}>
+              <FileDiffViewer fileDiffs={fileDiffs} loading={loadingDiff} />
             </div>
           </div>
-
-          <div className="diff-body" style={{ padding: '12px' }}>
-            <FileDiffViewer fileDiffs={fileDiffs} loading={loadingDiff} />
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
