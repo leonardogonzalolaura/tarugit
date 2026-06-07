@@ -1,5 +1,6 @@
 import { RepoInfo, ActivePanel } from '../types';
 import { SavedRepo } from './RepoManager';
+import { BranchSelector } from './BranchSelector';
 
 interface NavbarProps {
   repoInfo: RepoInfo | null;
@@ -11,9 +12,24 @@ interface NavbarProps {
   onRemoveRepo: (id: string) => void;
   onAddRepo: () => void;
   onCloneRepo: () => void;
+  hasUncommittedChanges?: boolean;
+  onBranchSwitch?: () => void;
+  onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
 }
 
-export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepoPath, onSelectRepo, onAddRepo, onCloneRepo }: NavbarProps) {
+export function Navbar({ 
+  repoInfo, 
+  activePanel, 
+  onPanelChange, 
+  repos, 
+  activeRepoPath, 
+  onSelectRepo, 
+  onAddRepo, 
+  onCloneRepo,
+  hasUncommittedChanges = false,
+  onBranchSwitch = () => {},
+  onConflictOperation
+}: NavbarProps) {
   const activeRepo = repos.find(r => r.path === activeRepoPath);
   const sorted = [...repos].sort((a, b) => {
     if (a.path === activeRepoPath) return -1;
@@ -55,13 +71,6 @@ export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepo
             ))}
           </select>
 
-          {/*activeRepo && (
-            <button
-              onClick={() => onRemoveRepo(activeRepo.id)}
-              title="Quitar de la lista"
-              style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', padding: '5px 8px', borderRadius: '5px', fontSize: '12px', lineHeight: 1 }}
-            >✕</button>
-          )*/}
           <button
             onClick={onAddRepo}
             title="Agregar repositorio"
@@ -74,22 +83,20 @@ export function Navbar({ repoInfo, activePanel, onPanelChange, repos, activeRepo
           >📥</button>
         </div>
 
+        {/* BranchSelector integrado aquí */}
         {repoInfo && (
-          <div className="branch-tag">
-            <span className="branch-dot" />
-            {repoInfo.current_branch}
-          </div>
+          <BranchSelector
+            repoPath={activeRepoPath}
+            currentBranch={repoInfo.current_branch}
+            hasUncommittedChanges={hasUncommittedChanges}
+            onBranchSwitch={onBranchSwitch}
+            onConflictOperation={onConflictOperation}
+          />
         )}
       </div>
 
       {repoInfo && (
         <nav className="navbar-tabs">
-          <button
-            className={`tab-btn ${activePanel === 'branches' ? 'active' : ''}`}
-            onClick={() => onPanelChange('branches')}
-          >
-            <span>🌿</span> Ramas
-          </button>
           <button
             className={`tab-btn ${activePanel === 'history' ? 'active' : ''}`}
             onClick={() => onPanelChange('history')}
