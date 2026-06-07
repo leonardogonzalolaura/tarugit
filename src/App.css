@@ -1780,4 +1780,36 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   font-size: 10px;
   color: var(--text-secondary);
   letter-spacing: .5px;
-}
+}
+
+
+.sync-btn--pull {
+  /* Estilo base ya está en el inline, pero puedes agregar variantes si quieres */
+}
+
+.sync-btn--pull:hover:not(:disabled) {
+  border-color: var(--accent) !important;
+}
+
+.sync-btn--push:hover:not(:disabled) {
+  border-color: var(--green) !important;
+}
+
+.sync-btn--diverged:hover:not(:disabled) {
+  border-color: var(--yellow) !important;
+}
+
+/* Tooltip sutil para indicar click derecho */
+.sync-btn {
+  position: relative;
+}
+
+.sync-btn::after {
+  content: "⌄";
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 8px;
+  opacity: 0.4;
+}
