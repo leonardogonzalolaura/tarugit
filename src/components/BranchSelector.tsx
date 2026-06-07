@@ -11,7 +11,7 @@ interface BranchSelectorProps {
   onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
 }
 
-type DirtyAction = 'carry' | 'cancel';
+//type DirtyAction = 'carry' | 'cancel';
 
 interface CreateBranchModalProps {
   branches: BranchInfo[];

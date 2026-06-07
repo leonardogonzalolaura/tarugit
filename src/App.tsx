@@ -6,7 +6,6 @@ import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager
 import { FileList } from './components/FileList';
 import { DiffViewer } from './components/DiffViewer';
 import { CommitPanel } from './components/CommitPanel';
-import { BranchManager } from './components/BranchManager';
 import { HistoryPanel, ExtendedCommitInfo } from './components/history/HistoryPanel';
 import { FileDiffViewer } from './components/history/FileDiffViewer';
 import { formatDate } from './components/history/utils';
@@ -534,15 +533,7 @@ function App() {
               onFileSaved={handleFileSaved}
             />
           )}
-          {leftTab === 'changes' && activePanel === 'branches' && repoInfo && (
-            <BranchManager
-              repoPath={repoPath}
-              currentBranch={repoInfo.current_branch}
-              hasUncommittedChanges={repoInfo.files && repoInfo.files.length > 0}
-              onBranchSwitch={handleBranchSwitch}
-              onConflictOperation={(op) => handleConflictDetected(op)}
-            />
-          )}
+          
         </div>
       </div>
 

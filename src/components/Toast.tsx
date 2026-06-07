@@ -20,7 +20,7 @@ export const toast = {
 
 // Auto-override window.alert for absolute compatibility with zero code changes
 if (typeof window !== 'undefined') {
-  const originalAlert = window.alert;
+  //const originalAlert = window.alert;
   window.alert = (msg: any) => {
     const msgStr = String(msg);
     // If it's a confirmation like confirm(), window.alert is sometimes used just to inform.
