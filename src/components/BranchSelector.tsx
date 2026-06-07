@@ -191,8 +191,13 @@ export function BranchSelector({
     setIsOpen(false);
     
     try {
-      const cmd = force ? 'switch_branch_force' : 'switch_branch';
-      await invoke(cmd, { repoPath, branchName: name });
+      const targetBranchInfo = branches.find(b => b.name === name);
+      if (targetBranchInfo?.is_remote) {
+        await invoke('checkout_remote_branch', { repoPath, branchName: name });
+      } else {
+        const cmd = force ? 'switch_branch_force' : 'switch_branch';
+        await invoke(cmd, { repoPath, branchName: name });
+      }
       
       // Esperar un momento para que el backend procese
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -302,10 +307,29 @@ export function BranchSelector({
     }
   };
 
+  const handleFetch = async () => {
+    setLoading(true);
+    try {
+      await invoke('fetch_remote_branches', { repoPath });
+      alert('✅ Ramas remotas actualizadas (Fetch completado)');
+      await loadBranches();
+    } catch (e) {
+      alert(`❌ Error al hacer fetch: ${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const localBranches = branches.filter(b => !b.is_remote);
-  const filteredBranches = search 
+  const remoteBranches = branches.filter(b => b.is_remote);
+
+  const filteredLocal = search 
     ? localBranches.filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
     : localBranches;
+
+  const filteredRemote = search
+    ? remoteBranches.filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
+    : remoteBranches;
 
   // Verificar si hay alguna operación en curso
   const isOperating = switchingBranch !== null || deleting !== null || loading;
@@ -370,6 +394,76 @@ export function BranchSelector({
     );
   };
 
+  const renderBranchRow = (branch: BranchInfo) => {
+    const isCurrent = branch.name === currentBranch;
+    return (
+      <div key={branch.name} className="branch-selector-item">
+        <div 
+          className={`branch-selector-item-main ${isCurrent ? 'current' : ''}`}
+          onClick={() => handleSwitch(branch.name)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="branch-selector-item-info">
+            <span className="branch-selector-item-icon">
+              {isCurrent ? '●' : branch.is_remote ? '☁️' : '○'}
+            </span>
+            <span className="branch-selector-item-name" style={{ wordBreak: 'break-all' }}>
+              {branch.name}
+            </span>
+            {isCurrent && (
+              <span className="branch-selector-item-badge">actual</span>
+            )}
+            {branch.is_remote && (
+              <span className="branch-selector-item-badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>remota</span>
+            )}
+          </div>
+        </div>
+        
+        {!isCurrent && !branch.is_remote && (
+          <div className="branch-selector-item-actions">
+            <button
+              className="branch-action-icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedBranchForAction(branch.name);
+                setShowMergeModal(true);
+                setIsOpen(false);
+              }}
+              title="Fusionar en rama actual"
+              disabled={isOperating}
+            >
+              🔀
+            </button>
+            <button
+              className="branch-action-icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedBranchForAction(branch.name);
+                setShowRebaseModal(true);
+                setIsOpen(false);
+              }}
+              title="Rebase sobre rama actual"
+              disabled={isOperating}
+            >
+              🔄
+            </button>
+            <button
+              className="branch-action-icon delete"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteBranch(branch.name);
+              }}
+              title="Eliminar rama"
+              disabled={deleting === branch.name || isOperating}
+            >
+              🗑️
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       {renderDirtyModal()}
@@ -416,91 +510,59 @@ export function BranchSelector({
               />
             </div>
 
-            <div className="branch-selector-actions">
+            <div className="branch-selector-actions" style={{ display: 'flex', gap: '8px', padding: '8px' }}>
               <button 
                 onClick={() => {
                   setShowCreateForm(true);
                   setIsOpen(false);
                 }}
                 className="branch-selector-action-btn"
+                style={{ flex: 1 }}
                 disabled={isOperating}
               >
-                ✨ Crear nueva rama
+                ✨ Crear rama
+              </button>
+              <button 
+                onClick={handleFetch}
+                className="branch-selector-action-btn"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+                disabled={isOperating}
+              >
+                🔄 Fetch remotas
               </button>
             </div>
 
-            <div className="branch-selector-list">
+            <div className="branch-selector-list" style={{ maxHeight: '280px', overflowY: 'auto' }}>
               {loading ? (
                 <div className="branch-selector-loading">
                   <span className="spinner-sm" /> Cargando ramas...
                 </div>
               ) : (
                 <>
-                  {filteredBranches.length === 0 ? (
+                  {filteredLocal.length === 0 && filteredRemote.length === 0 ? (
                     <div className="branch-selector-empty">
                       No se encontraron ramas
                     </div>
                   ) : (
-                    filteredBranches.map(branch => (
-                      <div key={branch.name} className="branch-selector-item">
-                        <div 
-                          className={`branch-selector-item-main ${branch.name === currentBranch ? 'current' : ''}`}
-                          onClick={() => handleSwitch(branch.name)}
-                        >
-                          <div className="branch-selector-item-info">
-                            <span className="branch-selector-item-icon">
-                              {branch.name === currentBranch ? '●' : '○'}
-                            </span>
-                            <span className="branch-selector-item-name">{branch.name}</span>
-                            {branch.name === currentBranch && (
-                              <span className="branch-selector-item-badge">actual</span>
-                            )}
+                    <>
+                      {filteredLocal.length > 0 && (
+                        <>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '6px 12px 4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Ramas Locales
                           </div>
-                        </div>
-                        
-                        {branch.name !== currentBranch && (
-                          <div className="branch-selector-item-actions">
-                            <button
-                              className="branch-action-icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedBranchForAction(branch.name);
-                                setShowMergeModal(true);
-                                setIsOpen(false);
-                              }}
-                              title="Fusionar en rama actual"
-                              disabled={isOperating}
-                            >
-                              🔀
-                            </button>
-                            <button
-                              className="branch-action-icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedBranchForAction(branch.name);
-                                setShowRebaseModal(true);
-                                setIsOpen(false);
-                              }}
-                              title="Rebase sobre rama actual"
-                              disabled={isOperating}
-                            >
-                              🔄
-                            </button>
-                            <button
-                              className="branch-action-icon delete"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteBranch(branch.name);
-                              }}
-                              title="Eliminar rama"
-                              disabled={deleting === branch.name || isOperating}
-                            >
-                              🗑️
-                            </button>
+                          {filteredLocal.map(renderBranchRow)}
+                        </>
+                      )}
+                      
+                      {filteredRemote.length > 0 && (
+                        <>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '10px 12px 4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', borderTop: '1px solid var(--border-light)' }}>
+                            Ramas Remotas
                           </div>
-                        )}
-                      </div>
-                    ))
+                          {filteredRemote.map(renderBranchRow)}
+                        </>
+                      )}
+                    </>
                   )}
                 </>
               )}
