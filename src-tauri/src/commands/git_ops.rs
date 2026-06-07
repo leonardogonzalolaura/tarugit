@@ -548,11 +548,16 @@ pub fn get_commit_diff_structured(repo_path: String, commit_id: String) -> Resul
 }
 
 #[command]
-pub fn push_branch(repo_path: String, branch_name: String) -> Result<String, String> {
-    log::info!("Haciendo push de la rama {} en {}", branch_name, repo_path);
+pub fn push_branch(repo_path: String, branch_name: String, force: Option<bool>) -> Result<String, String> {
+    log::info!("Haciendo push de la rama {} en {} (force: {:?})", branch_name, repo_path, force);
+    
+    let mut args = vec!["push".to_string(), "-u".to_string(), "origin".to_string(), branch_name];
+    if force.unwrap_or(false) {
+        args.push("--force".to_string());
+    }
     
     let output = create_git_command()
-        .args(["push", "-u", "origin", &branch_name])
+        .args(&args)
         .current_dir(&repo_path)
         .output()
         .map_err(|e| format!("Error ejecutando git push: {}", e))?;
@@ -564,6 +569,27 @@ pub fn push_branch(repo_path: String, branch_name: String) -> Result<String, Str
         Err(format!("Error en git push:\n{}", stderr))
     }
 }
+
+#[command]
+pub fn pull_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+    log::info!("Haciendo pull de la rama {} en {}", branch_name, repo_path);
+    
+    let output = create_git_command()
+        .args(["pull", "origin", &branch_name])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git pull: {}", e))?;
+        
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    
+    if output.status.success() {
+        Ok(format!("Pull completado con éxito:\n{}", stdout))
+    } else {
+        Err(format!("Error en git pull:\n{}", stderr))
+    }
+}
+
 
 #[command]
 pub fn get_commit_timestamp(repo_path: String, commit_id: String) -> Result<i64, String> {
