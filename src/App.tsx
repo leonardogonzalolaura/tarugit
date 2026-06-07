@@ -13,6 +13,8 @@ import { formatDate } from './components/history/utils';
 import { ConflictResolver } from './components/ConflictResolver/index';
 import { OperationStatusBar } from './components/OperationStatusBar';
 import { Footer } from './components/Footer';
+import { StashPanel } from './components/StashPanel';
+import { CreateStashModal } from './components/CreateStashModal';
 import './App.css';
 
 export type ConflictOperation = {
@@ -28,12 +30,15 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState('');
   // 'changes' | 'history' — tab del panel izquierdo
-  const [leftTab, setLeftTab] = useState<'changes' | 'history'>('changes');
+  const [leftTab, setLeftTab] = useState<'changes' | 'history' | 'stash'>('changes');
   // 'diff' | 'branches' — panel derecho
   const [activePanel, setActivePanel] = useState<'diff' | 'branches'>('diff');
   // Commit seleccionado desde el historial (modo compacto)
   const [selectedCommitInfo, setSelectedCommitInfo] = useState<ExtendedCommitInfo | null>(null);
   const [commitFileDiffs, setCommitFileDiffs] = useState<{ path: string; diff: string; additions: number; deletions: number }[]>([]);
+
+  const [stashes, setStashes] = useState<{ index: number; id: string; name: string; message: string }[]>([]);
+  const [showStashModal, setShowStashModal] = useState(false);
 
   const [resolvingConflictFile, setResolvingConflictFile] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -102,6 +107,9 @@ function App() {
     try {
       const result = await invoke<RepoInfo>('get_repo_status', { repoPath });
       setRepoInfo(result);
+      
+      const stashList = await invoke<any[]>('get_stash_list', { repoPath });
+      setStashes(stashList);
     } catch (_) { }
   };
 
@@ -162,6 +170,25 @@ function App() {
       alert('✅ Repositorio clonado exitosamente');
     } catch (e) {
       alert(`Error al clonar: ${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveStash = async (message: string, includeUntracked: boolean, filesToStash: string[] | null) => {
+    setLoading(true);
+    try {
+      const msg = await invoke<string>('save_stash', {
+        repoPath,
+        message: message || null,
+        includeUntracked,
+        files: filesToStash
+      });
+      alert(`✅ ${msg}`);
+      setShowStashModal(false);
+      await refreshStatus();
+    } catch (e) {
+      alert(`⚠️ Error al guardar stash: ${e}`);
     } finally {
       setLoading(false);
     }
@@ -287,6 +314,14 @@ function App() {
         />
       )}
 
+      {showStashModal && repoInfo && (
+        <CreateStashModal
+          files={repoInfo.files}
+          onSave={handleSaveStash}
+          onClose={() => setShowStashModal(false)}
+        />
+      )}
+
       {repoPath && (
         <OperationStatusBar
           repoPath={repoPath}
@@ -386,6 +421,15 @@ function App() {
                 >
                   Historial
                 </button>
+                <button
+                  className={`left-tab-btn${leftTab === 'stash' ? ' active' : ''}`}
+                  onClick={() => setLeftTab('stash')}
+                >
+                  Stash
+                  {stashes.length > 0 && (
+                    <span className="left-tab-badge">{stashes.length}</span>
+                  )}
+                </button>
               </div>
 
               {leftTab === 'changes' && (
@@ -405,6 +449,7 @@ function App() {
                     onCommit={makeCommit}
                     users={users}
                     onAddUser={handleAddUser}
+                    onStashClick={() => setShowStashModal(true)}
                   />
                 </>
               )}
@@ -421,6 +466,17 @@ function App() {
                       setSelectedCommitInfo(commit);
                       setCommitFileDiffs(diffs);
                     }}
+                  />
+                </div>
+              )}
+
+              {leftTab === 'stash' && (
+                <div className="left-history">
+                  <StashPanel
+                    repoPath={repoPath}
+                    stashes={stashes}
+                    loading={loading}
+                    onRefresh={refreshStatus}
                   />
                 </div>
               )}

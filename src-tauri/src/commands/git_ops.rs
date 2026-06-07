@@ -995,3 +995,145 @@ pub fn fetch_remote_branches(repo_path: String) -> Result<String, String> {
         Err(format!("Error en fetch: {}", stderr))
     }
 }
+
+// ─── Stash Operations ──────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Debug)]
+pub struct StashInfo {
+    pub index: usize,
+    pub id: String,
+    pub name: String,
+    pub message: String,
+}
+
+#[command]
+pub fn get_stash_list(repo_path: String) -> Result<Vec<StashInfo>, String> {
+    log::info!("Obteniendo lista de stash en: {}", repo_path);
+    let output = create_git_command()
+        .args(["stash", "list", "--format=%gd|%gs"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash list: {}", e))?;
+        
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(format!("Error al listar stash: {}", stderr));
+    }
+    
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut stashes = Vec::new();
+    for (index, line) in stdout.lines().enumerate() {
+        let parts: Vec<&str> = line.split('|').collect();
+        if parts.len() >= 2 {
+            let gd = parts[0].to_string();
+            let gs = parts[1..].join("|");
+            stashes.push(StashInfo {
+                index,
+                id: gd.clone(),
+                name: gd,
+                message: gs,
+            });
+        }
+    }
+    Ok(stashes)
+}
+
+#[command]
+pub fn save_stash(
+    repo_path: String,
+    message: Option<String>,
+    include_untracked: bool,
+    files: Option<Vec<String>>
+) -> Result<String, String> {
+    log::info!("Guardando stash en: {} (untracked: {})", repo_path, include_untracked);
+    let mut args = vec!["stash".to_string(), "push".to_string()];
+    
+    if include_untracked {
+        args.push("-u".to_string());
+    }
+    
+    if let Some(msg) = message {
+        if !msg.trim().is_empty() {
+            args.push("-m".to_string());
+            args.push(msg.trim().to_string());
+        }
+    }
+    
+    if let Some(f_list) = files {
+        if !f_list.is_empty() {
+            args.push("--".to_string());
+            for f in f_list {
+                args.push(f);
+            }
+        }
+    }
+    
+    let output = create_git_command()
+        .args(&args)
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash push: {}", e))?;
+        
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        if stdout.contains("No local changes to save") {
+            Err("No hay cambios locales para guardar en el stash".to_string())
+        } else {
+            Ok("Stash guardado exitosamente".to_string())
+        }
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Error al crear stash:\n{}", stderr))
+    }
+}
+
+#[command]
+pub fn apply_stash(repo_path: String, stash_id: String) -> Result<String, String> {
+    log::info!("Aplicando stash {} en: {}", stash_id, repo_path);
+    let output = create_git_command()
+        .args(["stash", "apply", &stash_id])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash apply: {}", e))?;
+        
+    if output.status.success() {
+        Ok("Stash aplicado con éxito".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Error al aplicar stash:\n{}", stderr))
+    }
+}
+
+#[command]
+pub fn pop_stash(repo_path: String, stash_id: String) -> Result<String, String> {
+    log::info!("Haciendo pop de stash {} en: {}", stash_id, repo_path);
+    let output = create_git_command()
+        .args(["stash", "pop", &stash_id])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash pop: {}", e))?;
+        
+    if output.status.success() {
+        Ok("Stash aplicado y eliminado con éxito".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Error al hacer pop de stash:\n{}", stderr))
+    }
+}
+
+#[command]
+pub fn drop_stash(repo_path: String, stash_id: String) -> Result<String, String> {
+    log::info!("Eliminando stash {} en: {}", stash_id, repo_path);
+    let output = create_git_command()
+        .args(["stash", "drop", &stash_id])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash drop: {}", e))?;
+        
+    if output.status.success() {
+        Ok("Stash eliminado con éxito".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Error al eliminar stash:\n{}", stderr))
+    }
+}

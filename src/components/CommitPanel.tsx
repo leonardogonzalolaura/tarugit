@@ -11,9 +11,10 @@ interface CommitPanelProps {
   onCommit: (message: string, user?: CommitUser) => void;
   users?: CommitUser[];
   onAddUser?: () => void;
+  onStashClick?: () => void;
 }
 
-export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUser }: CommitPanelProps) {
+export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUser, onStashClick }: CommitPanelProps) {
   const [message, setMessage] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState<number>(0);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -169,14 +170,28 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
         </div>
       </div>
 
-      <button
-        onClick={handleCommit}
-        disabled={loading || !message.trim()}
-        className="btn-commit"
-      >
-        {loading ? <span className="spinner-sm" /> : '🚀'} Hacer Commit
-        <span className="commit-shortcut">Ctrl+Enter</span>
-      </button>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+        <button
+          onClick={handleCommit}
+          disabled={loading || !message.trim()}
+          className="btn-commit"
+          style={{ flex: 1, margin: 0 }}
+        >
+          {loading ? <span className="spinner-sm" /> : '🚀'} Hacer Commit
+        </button>
+        {onStashClick && (
+          <button
+            type="button"
+            onClick={onStashClick}
+            disabled={loading}
+            className="btn-secondary"
+            style={{ padding: '0 14px', whiteSpace: 'nowrap' }}
+            title="Guardar cambios en Stash"
+          >
+            📦 Stash...
+          </button>
+        )}
+      </div>
     </div>
   );
 }

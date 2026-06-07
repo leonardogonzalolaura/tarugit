@@ -48,6 +48,11 @@ pub fn run() {
             commands::git_ops::get_commit_history_with_timestamp,
             commands::git_ops::fetch_remote_branches,
             commands::git_ops::push_branch,
+            commands::git_ops::get_stash_list,
+            commands::git_ops::save_stash,
+            commands::git_ops::apply_stash,
+            commands::git_ops::pop_stash,
+            commands::git_ops::drop_stash,
             // new functions files
             commands::file_ops::read_file_content,
             commands::file_ops::write_file_content,
