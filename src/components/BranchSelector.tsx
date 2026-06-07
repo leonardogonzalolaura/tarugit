@@ -11,7 +11,7 @@ interface BranchSelectorProps {
   onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
 }
 
-type DirtyAction = 'carry' | 'cancel'; // Esto faltaba
+type DirtyAction = 'carry' | 'cancel';
 
 interface CreateBranchModalProps {
   branches: BranchInfo[];
@@ -124,6 +124,7 @@ export function BranchSelector({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [switching, setSwitching] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [dirtyTarget, setDirtyTarget] = useState<string | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -197,6 +198,28 @@ export function BranchSelector({
     }
   };
 
+  const handleDeleteBranch = async (branchName: string) => {
+    if (branchName === currentBranch) {
+      alert('❌ No puedes eliminar la rama activa');
+      return;
+    }
+
+    const confirmDelete = confirm(`¿Eliminar la rama "${branchName}"?\n\nEsta acción no se puede deshacer.`);
+    if (!confirmDelete) return;
+
+    setDeleting(branchName);
+    try {
+      await invoke('delete_branch', { repoPath, branchName });
+      alert(`✅ Rama "${branchName}" eliminada`);
+      await loadBranches();
+      setIsOpen(false);
+    } catch (e) {
+      alert(`❌ Error al eliminar rama:\n${e}`);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   const handleMerge = async (targetBranch: string) => {
     setLoading(true);
     try {
@@ -266,7 +289,9 @@ export function BranchSelector({
     ? localBranches.filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
     : localBranches;
 
-  // Modales como componentes inline para evitar problemas de contexto
+  // Verificar si hay alguna operación en curso
+  const isOperating = switching !== null || deleting !== null || loading;
+
   const renderDirtyModal = () => {
     if (!dirtyTarget) return null;
     return (
@@ -347,10 +372,17 @@ export function BranchSelector({
           className="branch-selector-trigger"
           onClick={() => setIsOpen(!isOpen)}
           title="Cambiar de rama"
+          disabled={isOperating}
         >
           <span className="branch-dot" />
-          <span className="branch-selector-current">{currentBranch}</span>
-          <span className="branch-selector-chevron">▼</span>
+          <span className="branch-selector-current">
+            {switching ? `Cambiando a ${switching}...` : currentBranch}
+          </span>
+          {isOperating ? (
+            <span className="spinner-sm" style={{ marginLeft: '6px' }} />
+          ) : (
+            <span className="branch-selector-chevron">▼</span>
+          )}
         </button>
 
         {isOpen && (
@@ -373,6 +405,7 @@ export function BranchSelector({
                   setIsOpen(false);
                 }}
                 className="branch-selector-action-btn"
+                disabled={isOperating}
               >
                 ✨ Crear nueva rama
               </button>
@@ -407,6 +440,9 @@ export function BranchSelector({
                             {switching === branch.name && (
                               <span className="spinner-sm" />
                             )}
+                            {deleting === branch.name && (
+                              <span className="deleting-text">eliminando...</span>
+                            )}
                           </div>
                         </div>
                         
@@ -421,6 +457,7 @@ export function BranchSelector({
                                 setIsOpen(false);
                               }}
                               title="Fusionar en rama actual"
+                              disabled={isOperating}
                             >
                               🔀
                             </button>
@@ -433,8 +470,20 @@ export function BranchSelector({
                                 setIsOpen(false);
                               }}
                               title="Rebase sobre rama actual"
+                              disabled={isOperating}
                             >
                               🔄
+                            </button>
+                            <button
+                              className="branch-action-icon delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteBranch(branch.name);
+                              }}
+                              title="Eliminar rama"
+                              disabled={deleting === branch.name || isOperating}
+                            >
+                              🗑️
                             </button>
                           </div>
                         )}

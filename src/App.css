@@ -1514,3 +1514,31 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Estado de carga en el botón */
+.branch-selector-trigger:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Texto de eliminando */
+.deleting-text {
+  font-size: 10px;
+  color: var(--yellow);
+  margin-left: 6px;
+}
+
+/* Botón de eliminar en rojo */
+.branch-action-icon.delete {
+  color: var(--red);
+}
+
+.branch-action-icon.delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--red);
+}
+
+.branch-action-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
