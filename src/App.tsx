@@ -47,16 +47,12 @@ function App() {
   });
 
   const handleAddUser = () => {
-    // Limpiar los campos del formulario
     setNewUserName('');
     setNewUserEmail('');
-    // Abrir el modal
     setShowUserModal(true);
   };
 
-  // Función para guardar el nuevo usuario
   const saveNewUser = () => {
-    // Validar que no estén vacíos
     if (!newUserName.trim()) {
       alert('⚠️ El nombre es obligatorio');
       return;
@@ -67,32 +63,22 @@ function App() {
       return;
     }
 
-    // Validar formato básico de email
     if (!newUserEmail.includes('@') || !newUserEmail.includes('.')) {
       alert('⚠️ Ingresa un correo válido (ej: usuario@empresa.com)');
       return;
     }
 
-    // Crear el nuevo usuario
     const newUsers = [...users, {
       name: newUserName.trim(),
       email: newUserEmail.trim()
     }];
 
-    // Actualizar el estado y guardar en localStorage
     setUsers(newUsers);
     localStorage.setItem('tarugit_users', JSON.stringify(newUsers));
-
-    // Cerrar el modal
     setShowUserModal(false);
-
-    // Opcional: Mostrar mensaje de éxito
-    // alert('✅ Usuario agregado correctamente');
   };
 
   const { sorted: savedRepos, addRepo, removeRepo } = useRepos(repoPath);
-
-  // Contexto de la operación que generó conflictos (merge / rebase / cherry-pick)
   const [conflictOperation, setConflictOperation] = useState<ConflictOperation | null>(null);
 
   // Auto-refresh cada 4 segundos cuando hay repo abierto
@@ -117,7 +103,6 @@ function App() {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  // Abre un repositorio dado su path
   const openRepo = async (path?: string) => {
     const targetPath = path ?? repoPath;
     if (!targetPath) return;
@@ -216,7 +201,6 @@ function App() {
     setResolvingConflictFile(null);
   };
 
-  // Callback para cuando BranchManager o HistoryPanel detectan conflictos
   const handleConflictDetected = async (op: ConflictOperation) => {
     setConflictOperation(op);
     await refreshStatus();
@@ -234,6 +218,20 @@ function App() {
     await refreshStatus();
   };
 
+  // Callback para refrescar después de editar un archivo
+  const handleFileSaved = async () => {
+    await refreshStatus();
+    // Recargar el diff del archivo actual si está seleccionado
+    if (selectedFile) {
+      try {
+        const diff = await invoke<string>('get_file_diff', { repoPath, filePath: selectedFile });
+        setFileDiff(diff);
+      } catch (_) {
+        setFileDiff('');
+      }
+    }
+  };
+
   return (
     <div className="app">
       <Navbar
@@ -248,7 +246,6 @@ function App() {
         onCloneRepo={() => setShowCloneModal(true)}
       />
 
-      {/* Modales de repositorio */}
       {showAddModal && (
         <AddRepoModal
           onAdd={(path) => { addRepo(path); openRepo(path); setShowAddModal(false); }}
@@ -262,7 +259,6 @@ function App() {
         />
       )}
 
-      {/* Barra de estado de operación en curso */}
       {repoPath && (
         <OperationStatusBar
           repoPath={repoPath}
@@ -278,7 +274,6 @@ function App() {
       {showUserModal && (
         <div className="modal-backdrop" onClick={() => setShowUserModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px' }}>
-
             <h3 className="modal-title">Agregar usuario</h3>
             <p className="modal-desc">Ingresa los datos del autor para los commits</p>
 
@@ -333,7 +328,6 @@ function App() {
         </div>
       )}
 
-
       <div className="layout">
         {/* Columna izquierda colapsable */}
         <div className={`left-col${sidebarCollapsed ? ' left-col--collapsed' : ''}`}>
@@ -379,6 +373,8 @@ function App() {
               diffContent={fileDiff}
               loading={loading}
               onClose={() => { setSelectedFile(null); setFileDiff(''); }}
+              repoPath={repoPath}
+              onFileSaved={handleFileSaved}
             />
           )}
           {activePanel === 'branches' && repoInfo && (
@@ -416,8 +412,6 @@ function App() {
           />
         </div>
       )}
-
-
     </div>
   );
 }

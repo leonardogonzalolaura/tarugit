@@ -48,6 +48,11 @@ pub fn run() {
             commands::git_ops::get_commit_history_with_timestamp,
             commands::git_ops::fetch_remote_branches,
             commands::git_ops::push_branch,
+            // new functions files
+            commands::file_ops::read_file_content,
+            commands::file_ops::write_file_content,
+            commands::file_ops::read_file_from_commit,
+            commands::file_ops::get_file_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
