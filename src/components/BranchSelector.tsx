@@ -123,15 +123,22 @@ export function BranchSelector({
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [switching, setSwitching] = useState<string | null>(null);
+  const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dirtyTarget, setDirtyTarget] = useState<string | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showRebaseModal, setShowRebaseModal] = useState(false);
   const [selectedBranchForAction, setSelectedBranchForAction] = useState<string | null>(null);
+  const [displayBranch, setDisplayBranch] = useState(currentBranch);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Actualizar la rama mostrada cuando cambia currentBranch
+  useEffect(() => {
+    setDisplayBranch(currentBranch);
+    setSwitchingBranch(null);
+  }, [currentBranch]);
 
   useEffect(() => {
     if (isOpen && repoPath) {
@@ -178,13 +185,24 @@ export function BranchSelector({
   };
 
   const doSwitch = async (name: string, force: boolean) => {
-    setSwitching(name);
+    // Mostrar estado de carga inmediatamente
+    setSwitchingBranch(name);
+    setDisplayBranch(`↻ ${name}...`);
+    setIsOpen(false);
+    
     try {
       const cmd = force ? 'switch_branch_force' : 'switch_branch';
       await invoke(cmd, { repoPath, branchName: name });
+      
+      // Esperar un momento para que el backend procese
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Notificar al padre que la rama cambió
       onBranchSwitch();
-      setIsOpen(false);
+      
+      // Recargar las ramas para asegurar que todo esté sincronizado
       await loadBranches();
+      
     } catch (e) {
       console.error('Error en switch:', e);
       const errStr = String(e);
@@ -193,8 +211,9 @@ export function BranchSelector({
       } else {
         alert(`Error cambiando a rama "${name}":\n${e}`);
       }
-    } finally {
-      setSwitching(null);
+      // Restaurar la rama mostrada en caso de error
+      setDisplayBranch(currentBranch);
+      setSwitchingBranch(null);
     }
   };
 
@@ -212,7 +231,6 @@ export function BranchSelector({
       await invoke('delete_branch', { repoPath, branchName });
       alert(`✅ Rama "${branchName}" eliminada`);
       await loadBranches();
-      setIsOpen(false);
     } catch (e) {
       alert(`❌ Error al eliminar rama:\n${e}`);
     } finally {
@@ -290,7 +308,7 @@ export function BranchSelector({
     : localBranches;
 
   // Verificar si hay alguna operación en curso
-  const isOperating = switching !== null || deleting !== null || loading;
+  const isOperating = switchingBranch !== null || deleting !== null || loading;
 
   const renderDirtyModal = () => {
     if (!dirtyTarget) return null;
@@ -370,13 +388,13 @@ export function BranchSelector({
       <div className="branch-selector" ref={dropdownRef}>
         <button 
           className="branch-selector-trigger"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => !isOperating && setIsOpen(!isOpen)}
           title="Cambiar de rama"
           disabled={isOperating}
         >
           <span className="branch-dot" />
           <span className="branch-selector-current">
-            {switching ? `Cambiando a ${switching}...` : currentBranch}
+            {displayBranch}
           </span>
           {isOperating ? (
             <span className="spinner-sm" style={{ marginLeft: '6px' }} />
@@ -436,12 +454,6 @@ export function BranchSelector({
                             <span className="branch-selector-item-name">{branch.name}</span>
                             {branch.name === currentBranch && (
                               <span className="branch-selector-item-badge">actual</span>
-                            )}
-                            {switching === branch.name && (
-                              <span className="spinner-sm" />
-                            )}
-                            {deleting === branch.name && (
-                              <span className="deleting-text">eliminando...</span>
                             )}
                           </div>
                         </div>
