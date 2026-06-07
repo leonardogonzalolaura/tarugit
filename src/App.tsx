@@ -133,6 +133,26 @@ function App() {
     }
   };
 
+  // Cargar el último repo abierto al iniciar
+  useEffect(() => {
+    const saved = localStorage.getItem('tarugit_repos');
+    if (saved) {
+      try {
+        const repos = JSON.parse(saved);
+        if (Array.isArray(repos) && repos.length > 0) {
+          const sortedRepos = [...repos].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+          const lastRepo = sortedRepos[0];
+          if (lastRepo && lastRepo.path) {
+            openRepo(lastRepo.path);
+          }
+        }
+      } catch (e) {
+        console.error('Error al abrir el repo inicial:', e);
+      }
+    }
+  }, []);
+
+
   const cloneRepo = async (url: string, targetPath: string) => {
     setLoading(true);
     try {

@@ -237,7 +237,6 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         style={compactMode ? { width: '100%', flex: 1 } : { width: `${listWidth}%`, minWidth: 0, flex: 'none' }}
       >
         <div className="panel-header" style={{ padding: '8px 12px 6px' }}>
-          <h2 className="panel-title">🕓 Historial</h2>
           <div className="panel-header-right" style={{ display: 'flex', gap: '6px' }}>
             {selectedCount > 0 && (
               <button
