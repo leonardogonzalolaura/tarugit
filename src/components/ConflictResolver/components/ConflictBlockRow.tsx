@@ -71,11 +71,11 @@ export function ConflictBlockRow({
 
         {pane === 'result' && (
           <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-            <button onClick={onAcceptTheirs} style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', color: 'var(--green)', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>⬅️ Aceptar Local</button>
+            <button onClick={onAcceptOurs} style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', color: 'var(--green)', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>⬅️ Aceptar Local</button>
 
             <button onClick={onAcceptBoth} style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>🔗 Aceptar Ambos</button>
 
-            <button onClick={onAcceptOurs} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>Aceptar Entrante ➡️</button>
+            <button onClick={onAcceptTheirs} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>Aceptar Entrante ➡️</button>
 
             <button onClick={onIgnore} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', marginLeft: 'auto' }}>✕ Ignorar</button>
           </div>
