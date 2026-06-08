@@ -54,6 +54,7 @@ pub fn run() {
             commands::git_ops::pop_stash,
             commands::git_ops::drop_stash,
             commands::git_ops::git_status_remote,
+            commands::git_ops::pull_branch,
             // new functions files
             commands::file_ops::read_file_content,
             commands::file_ops::write_file_content,

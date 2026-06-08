@@ -1212,3 +1212,23 @@ pub fn git_status_remote(repo_path: String, branch_name: String) -> Result<GitRe
         has_remote: true,
     })
 }
+
+#[command]
+pub fn pull_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+    log::info!("Haciendo pull de la rama {} en {}", branch_name, repo_path);
+    
+    let output = create_git_command()
+        .args(["pull", "origin", &branch_name])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git pull: {}", e))?;
+        
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    
+    if output.status.success() {
+        Ok(stdout)
+    } else {
+        Err(format!("Error en git pull:\n{}\n{}", stdout, stderr))
+    }
+}
