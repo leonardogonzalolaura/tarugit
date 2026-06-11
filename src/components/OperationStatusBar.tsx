@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 interface OperationStatusBarProps {
   repoPath: string;
@@ -18,20 +19,32 @@ export function OperationStatusBar({ repoPath, onOperationAborted, onOperationCo
   const [state, setState] = useState<RepoState | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const checkingRef = useRef(false);
+
   useEffect(() => {
     if (!repoPath) return;
+
+    // Verificar estado inicial al montar
     checkState();
-    // Verificar cada 3 segundos
-    const interval = setInterval(checkState, 3000);
-    return () => clearInterval(interval);
+
+    // Suscribirse al evento del watcher — reacciona solo cuando .git cambia
+    let unlisten: UnlistenFn | null = null;
+    listen<void>('repo-changed', () => { checkState(); })
+      .then((fn) => { unlisten = fn; });
+
+    return () => { unlisten?.(); };
   }, [repoPath]);
 
   const checkState = async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
     try {
       const result = await invoke<RepoState>('get_repo_state', { repoPath });
       setState(result);
     } catch (e) {
       console.error('Error checking repo state:', e);
+    } finally {
+      checkingRef.current = false;
     }
   };
 

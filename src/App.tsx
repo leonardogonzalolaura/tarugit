@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { RepoInfo } from './types';
 import { Navbar } from './components/Navbar';
 import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager';
@@ -95,23 +96,48 @@ function App() {
   const { sorted: savedRepos, addRepo, removeRepo } = useRepos(repoPath);
   const [conflictOperation, setConflictOperation] = useState<ConflictOperation | null>(null);
 
-  // Auto-refresh cada 4 segundos cuando hay repo abierto
-  useEffect(() => {
-    if (!repoPath) return;
-    const id = setInterval(() => { if (!loading && !resolvingConflictFile) refreshStatus(); }, 4000);
-    return () => clearInterval(id);
-  }, [repoPath, loading, resolvingConflictFile]);
+  // Ref para evitar llamadas concurrentes al status
+  const refreshingRef = useRef(false);
 
   const refreshStatus = async () => {
-    if (!repoPath) return;
+    if (!repoPath || refreshingRef.current) return;
+    refreshingRef.current = true;
     try {
-      const result = await invoke<RepoInfo>('get_repo_status', { repoPath });
+      const [result, stashList] = await Promise.all([
+        invoke<RepoInfo>('get_repo_status', { repoPath }),
+        invoke<any[]>('get_stash_list', { repoPath }),
+      ]);
       setRepoInfo(result);
-      
-      const stashList = await invoke<any[]>('get_stash_list', { repoPath });
       setStashes(stashList);
     } catch (_) { }
+    finally {
+      refreshingRef.current = false;
+    }
   };
+
+  // Listener reactivo: el backend emite 'repo-changed' cuando detecta
+  // cambios reales en .git — sin polling activo.
+  useEffect(() => {
+    if (!repoPath) return;
+
+    let unlisten: UnlistenFn | null = null;
+
+    // Iniciar watcher en el backend para este repo
+    invoke('start_repo_watcher', { repoPath }).catch((e) =>
+      console.warn('[watcher] No se pudo iniciar:', e)
+    );
+
+    // Suscribirse al evento emitido por el watcher
+    listen<void>('repo-changed', () => {
+      if (!resolvingConflictFile) refreshStatus();
+    }).then((fn) => { unlisten = fn; });
+
+    return () => {
+      unlisten?.();
+      invoke('stop_repo_watcher').catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoPath]);
 
   const handleOperationAborted = async () => {
     await refreshStatus();

@@ -1,10 +1,15 @@
 mod commands;
+mod watcher;
+
+use watcher::WatcherState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Inicializar logger
     simple_logger::SimpleLogger::new()
         .env()
+        .with_module_level("notify", log::LevelFilter::Warn)
+        .with_module_level("notify_debouncer_mini", log::LevelFilter::Warn)
         .init()
         .unwrap();
     
@@ -13,6 +18,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // Registrar el estado global del watcher (una sola instancia)
+        .manage(WatcherState::new())
         .invoke_handler(tauri::generate_handler![
             commands::git_ops::open_repository,
             commands::git_ops::clone_repository,
@@ -55,6 +62,9 @@ pub fn run() {
             commands::git_ops::drop_stash,
             commands::git_ops::git_status_remote,
             commands::git_ops::pull_branch,
+            // Watcher commands
+            start_repo_watcher,
+            stop_repo_watcher,
             // new functions files
             commands::file_ops::read_file_content,
             commands::file_ops::write_file_content,
@@ -63,4 +73,22 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Inicia el file watcher para el repositorio dado.
+/// El frontend lo llama cada vez que abre un repo nuevo.
+#[tauri::command]
+fn start_repo_watcher(
+    repo_path: String,
+    state: tauri::State<'_, WatcherState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let path = std::path::PathBuf::from(repo_path);
+    state.start(path, app)
+}
+
+/// Detiene el watcher activo (p. ej. al cerrar la app o cambiar de repo).
+#[tauri::command]
+fn stop_repo_watcher(state: tauri::State<'_, WatcherState>) {
+    state.stop();
 }

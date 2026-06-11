@@ -7,6 +7,7 @@ use std::os::windows::process::CommandExt;
 
 fn create_git_command() -> std::process::Command {
     let mut cmd = std::process::Command::new("git");
+    cmd.env("GIT_TERMINAL_PROMPT", "0");
     #[cfg(target_os = "windows")]
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -21,6 +22,7 @@ pub struct GitRemoteStatus {
     ahead: i32,
     behind: i32,
     has_remote: bool,
+    has_upstream: bool,
 }
 
 #[derive(serde::Serialize, Debug)]
@@ -94,22 +96,26 @@ pub fn open_repository(path: String) -> Result<RepoInfo, String> {
 }
 
 #[command]
-pub fn clone_repository(url: String, path: String) -> Result<RepoInfo, String> {
-    log::info!("Clonando {} en {}", url, path);
-    let repo_path = Path::new(&path);
-    if let Some(parent) = repo_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    match Repository::clone(&url, repo_path) {
-        Ok(repo) => {
-            log::info!("Clonado exitoso");
-            get_repo_info(&repo, false)
+pub async fn clone_repository(url: String, path: String) -> Result<RepoInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Clonando {} en {}", url, path);
+        let repo_path = std::path::Path::new(&path);
+        if let Some(parent) = repo_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        Err(e) => {
-            log::error!("Error clonando: {}", e);
-            Err(format!("Error al clonar: {}", e))
+        match Repository::clone(&url, repo_path) {
+            Ok(repo) => {
+                log::info!("Clonado exitoso");
+                get_repo_info(&repo, false)
+            }
+            Err(e) => {
+                log::error!("Error clonando: {}", e);
+                Err(format!("Error al clonar: {}", e))
+            }
         }
-    }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
 }
 
 #[command]
@@ -134,8 +140,6 @@ pub fn get_repo_status(repo_path: String) -> Result<RepoInfo, String> {
 
 #[command]
 pub fn get_repo_state(repo_path: String) -> Result<RepoState, String> {
-    log::info!("Obteniendo estado del repositorio: {}", repo_path);
-    
     let git_dir = format!("{}/.git", repo_path);
     
     let is_rebasing = std::path::Path::new(&format!("{}/rebase-merge", git_dir)).exists()
@@ -554,21 +558,31 @@ pub fn get_commit_diff_structured(repo_path: String, commit_id: String) -> Resul
 }
 
 #[command]
-pub fn push_branch(repo_path: String, branch_name: String) -> Result<String, String> {
-    log::info!("Haciendo push de la rama {} en {}", branch_name, repo_path);
-    
-    let output = create_git_command()
-        .args(["push", "-u", "origin", &branch_name])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Error ejecutando git push: {}", e))?;
+pub async fn push_branch(repo_path: String, branch_name: String, force: Option<bool>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Haciendo push de la rama {} en {}", branch_name, repo_path);
         
-    if output.status.success() {
-        Ok("Push completado con éxito".to_string())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        Err(format!("Error en git push:\n{}", stderr))
-    }
+        let mut args = vec!["push".to_string()];
+        if force.unwrap_or(false) {
+            args.push("-f".to_string());
+        }
+        args.extend(["-u".to_string(), "origin".to_string(), branch_name]);
+        
+        let output = create_git_command()
+            .args(&args)
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git push: {}", e))?;
+            
+        if output.status.success() {
+            Ok("Push completado con éxito".to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            Err(format!("Error en git push:\n{}", stderr))
+        }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
 }
 
 #[command]
@@ -1014,7 +1028,7 @@ pub struct StashInfo {
 
 #[command]
 pub fn get_stash_list(repo_path: String) -> Result<Vec<StashInfo>, String> {
-    log::info!("Obteniendo lista de stash en: {}", repo_path);
+    log::debug!("Obteniendo lista de stash en: {}", repo_path);
     let output = create_git_command()
         .args(["stash", "list", "--format=%gd|%gs"])
         .current_dir(&repo_path)
@@ -1145,90 +1159,101 @@ pub fn drop_stash(repo_path: String, stash_id: String) -> Result<String, String>
 }
 
 #[command]
-pub fn git_status_remote(repo_path: String, branch_name: String) -> Result<GitRemoteStatus, String> {
-    log::info!("Obteniendo estado remoto para branch {} en: {}", branch_name, repo_path);
-    
-    // Verificar si existe algún remoto configurado
-    let remote_check = create_git_command()
-        .args(["remote"])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Error verificando remotos: {}", e))?;
-    
-    let has_remote = !String::from_utf8_lossy(&remote_check.stdout).trim().is_empty();
-    
-    if !has_remote {
-        log::info!("No hay remotos configurados en el repositorio");
-        return Ok(GitRemoteStatus {
-            ahead: 0,
-            behind: 0,
-            has_remote: false,
-        });
-    }
-    
-    // Verificar si la rama tiene upstream configurado
-    let upstream_check = create_git_command()
-        .args(["rev-parse", "--abbrev-ref", &format!("{0}@{{u}}", branch_name)])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Error verificando upstream: {}", e))?;
-    
-    if !upstream_check.status.success() {
-        log::info!("La rama {} no tiene upstream configurado", branch_name);
-        return Ok(GitRemoteStatus {
-            ahead: 0,
-            behind: 0,
+pub async fn git_status_remote(repo_path: String, branch_name: String) -> Result<GitRemoteStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::debug!("Obteniendo estado remoto para branch {} en: {}", branch_name, repo_path);
+        
+        // Verificar si existe algún remoto configurado
+        let remote_check = create_git_command()
+            .args(["remote"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando remotos: {}", e))?;
+        
+        let has_remote = !String::from_utf8_lossy(&remote_check.stdout).trim().is_empty();
+        
+        if !has_remote {
+            log::debug!("No hay remotos configurados en el repositorio");
+            return Ok(GitRemoteStatus {
+                ahead: 0,
+                behind: 0,
+                has_remote: false,
+                has_upstream: false,
+            });
+        }
+        
+        // Verificar si la rama tiene upstream configurado
+        let upstream_check = create_git_command()
+            .args(["rev-parse", "--abbrev-ref", &format!("{0}@{{u}}", branch_name)])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando upstream: {}", e))?;
+        
+        if !upstream_check.status.success() {
+            log::debug!("La rama {} no tiene upstream configurado", branch_name);
+            return Ok(GitRemoteStatus {
+                ahead: 0,
+                behind: 0,
+                has_remote: true,
+                has_upstream: false,
+            });
+        }
+        
+        // Obtener la diferencia entre local y remoto usando rev-list
+        // El formato de salida de rev-list --count --left-right es: "<ahead>\t<behind>"
+        let diff_output = create_git_command()
+            .args(["rev-list", "--count", "--left-right", &format!("{}...{}@{{u}}", branch_name, branch_name)])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error obteniendo diferencia de commits: {}", e))?;
+        
+        let output_str = String::from_utf8_lossy(&diff_output.stdout);
+        let parts: Vec<&str> = output_str.trim().split('\t').collect();
+        
+        let (ahead, behind) = if parts.len() >= 2 {
+            let ahead_str = parts[0].trim_start_matches('<').trim();
+            let behind_str = parts[1].trim_start_matches('>').trim();
+            (
+                ahead_str.parse::<i32>().unwrap_or(0),
+                behind_str.parse::<i32>().unwrap_or(0),
+            )
+        } else {
+            (0, 0)
+        };
+        
+        log::debug!("Estado remoto - ahead: {}, behind: {}", ahead, behind);
+        
+        Ok(GitRemoteStatus {
+            ahead,
+            behind,
             has_remote: true,
-        });
-    }
-    
-    // Obtener la diferencia entre local y remoto usando rev-list
-    // El formato de salida de rev-list --count --left-right es: "<ahead>\t<behind>"
-    let diff_output = create_git_command()
-        .args(["rev-list", "--count", "--left-right", &format!("{}...{}@{{u}}", branch_name, branch_name)])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Error obteniendo diferencia de commits: {}", e))?;
-    
-    let output_str = String::from_utf8_lossy(&diff_output.stdout);
-    let parts: Vec<&str> = output_str.trim().split('\t').collect();
-    
-    let (ahead, behind) = if parts.len() >= 2 {
-        let ahead_str = parts[0].trim_start_matches('<').trim();
-        let behind_str = parts[1].trim_start_matches('>').trim();
-        (
-            ahead_str.parse::<i32>().unwrap_or(0),
-            behind_str.parse::<i32>().unwrap_or(0),
-        )
-    } else {
-        (0, 0)
-    };
-    
-    log::info!("Estado remoto - ahead: {}, behind: {}", ahead, behind);
-    
-    Ok(GitRemoteStatus {
-        ahead,
-        behind,
-        has_remote: true,
+            has_upstream: true,
+        })
     })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
 }
 
 #[command]
-pub fn pull_branch(repo_path: String, branch_name: String) -> Result<String, String> {
-    log::info!("Haciendo pull de la rama {} en {}", branch_name, repo_path);
-    
-    let output = create_git_command()
-        .args(["pull", "origin", &branch_name])
-        .current_dir(&repo_path)
-        .output()
-        .map_err(|e| format!("Error ejecutando git pull: {}", e))?;
+pub async fn pull_branch(repo_path: String, branch_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Haciendo pull de la rama {} en {}", branch_name, repo_path);
         
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    
-    if output.status.success() {
-        Ok(stdout)
-    } else {
-        Err(format!("Error en git pull:\n{}\n{}", stdout, stderr))
-    }
+        let output = create_git_command()
+            .args(["pull", "origin", &branch_name])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git pull: {}", e))?;
+            
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        
+        if output.status.success() {
+            Ok(stdout)
+        } else {
+            Err(format!("Error en git pull:\n{}\n{}", stdout, stderr))
+        }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
 }

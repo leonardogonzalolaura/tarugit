@@ -22,4 +22,6 @@ git2 = "0.18.3"
 dirs = "5.0.1"
 log = "0.4.30"
 simple_logger = "4.3.3"
+notify = "6.1"
+notify-debouncer-mini = "0.4"
 
