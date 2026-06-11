@@ -403,26 +403,28 @@ export function Navbar({
                 onConflictOperation={onConflictOperation}
               />
 
-              <div className="sync-menu-container" style={{ position: 'relative' }}>
-                {/* Botón principal */}
+              <div className="sync-menu-container" style={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
+                {/* Botón principal (Acción por defecto) */}
                 <button
                   className={`sync-btn ${statusConfig.bgClass}`}
                   onClick={getMainAction()}
-                  onContextMenu={e => { e.preventDefault(); if (!isDisabled) setShowMenu(!showMenu); }}
                   disabled={isDisabled}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
                     padding: '4px 10px',
                     background: 'var(--bg-elevated)',
                     border: `1px solid ${syncStatus === 'diverged' ? 'var(--yellow)' : syncStatus === 'no-upstream' ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: '6px',
+                    borderRight: 'none',
+                    borderTopLeftRadius: '6px',
+                    borderBottomLeftRadius: '6px',
+                    borderTopRightRadius: '0px',
+                    borderBottomRightRadius: '0px',
                     color: 'var(--text-primary)',
                     fontSize: '12px',
                     fontFamily: 'var(--font-mono)',
                     cursor: isDisabled ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
                     opacity: isDisabled ? 0.5 : 1,
-                    position: 'relative'
                   }}
                   onMouseEnter={e => {
                     if (!isDisabled) {
@@ -436,17 +438,16 @@ export function Navbar({
                       e.currentTarget.style.borderColor = syncStatus === 'diverged' ? 'var(--yellow)' : syncStatus === 'no-upstream' ? 'var(--accent)' : 'var(--border)';
                     }
                   }}
+                 title={syncStatus === 'diverged' ? "Divergido: Clic para Force Push o usa la flecha para elegir" : ""}
                 >
                   {syncing
                     ? <span className="spinner-sm" />
                     : <span style={{ fontSize: '12px' }}>{statusConfig.icon}</span>
                   }
                   <span>{syncing ? 'Sincronizando…' : statusConfig.text}</span>
-                  {!syncing && <span style={{ fontSize: '9px', marginLeft: '2px', opacity: 0.6 }}>▼</span>}
-
                   {showCountBadge && !syncing && (
                     <span style={{
-                      position: 'absolute', top: '-6px', right: '-6px',
+                      marginLeft: '6px',
                       background: statusConfig.badgeBg, color: 'white',
                       fontSize: '9px', fontWeight: 700, padding: '1px 5px',
                       borderRadius: '10px', fontFamily: 'var(--font-mono)'
@@ -456,13 +457,49 @@ export function Navbar({
                   )}
                 </button>
 
+                {/* Botón de Flecha Dropdown */}
+                <button
+                  onClick={e => { e.stopPropagation(); if (!syncing) setShowMenu(!showMenu); }}
+                  disabled={syncing}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '4px 8px',
+                    background: 'var(--bg-elevated)',
+                    border: `1px solid ${syncStatus === 'diverged' ? 'var(--yellow)' : syncStatus === 'no-upstream' ? 'var(--accent)' : 'var(--border)'}`,
+                    borderTopRightRadius: '6px',
+                    borderBottomRightRadius: '6px',
+                    borderTopLeftRadius: '0px',
+                    borderBottomLeftRadius: '0px',
+                    color: 'var(--text-primary)',
+                    fontSize: '10px',
+                    cursor: syncing ? 'not-allowed' : 'pointer',
+                    opacity: syncing ? 0.5 : 1,
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => {
+                    if (!syncing) {
+                      e.currentTarget.style.background = 'var(--bg-hover)';
+                      e.currentTarget.style.borderColor = syncStatus === 'diverged' ? 'var(--yellow)' : 'var(--accent)';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!syncing) {
+                      e.currentTarget.style.background = 'var(--bg-elevated)';
+                      e.currentTarget.style.borderColor = syncStatus === 'diverged' ? 'var(--yellow)' : syncStatus === 'no-upstream' ? 'var(--accent)' : 'var(--border)';
+                    }
+                  }}
+                  title="Opciones de sincronización"
+                >
+                  ▼
+                </button>
+
                 {/* Menú desplegable */}
                 {showMenu && !syncing && (
                   <div
                     className="branch-selector-dropdown"
                     style={{
                       position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                      width: '280px',
+                      width: '300px',
                       background: 'var(--bg-elevated)',
                       border: '1px solid var(--border)',
                       borderRadius: '8px',
@@ -477,7 +514,7 @@ export function Navbar({
                       </div>
                       <div style={{ fontSize: '11px', color: syncStatus === 'diverged' ? 'var(--yellow)' : syncStatus === 'no-upstream' ? 'var(--accent)' : 'var(--text-secondary)' }}>
                         {syncStatus === 'no-upstream' && '☁️ Rama solo existe localmente — usa Publicar'}
-                        {syncStatus === 'diverged' && '⚡ Historial divergente (squash / rebase) — usa Force Push'}
+                        {syncStatus === 'diverged' && '⚡ Historial divergente detectado'}
                         {syncStatus !== 'no-upstream' && syncStatus !== 'diverged' && (
                           <>
                             {aheadCount > 0 && `↑ ${aheadCount} commit${aheadCount !== 1 ? 's' : ''} local(es)  `}
@@ -488,49 +525,130 @@ export function Navbar({
                       </div>
                     </div>
 
-                    {/* Pull */}
-                    <button
-                      onClick={handlePull}
-                      disabled={syncStatus === 'no-upstream' || syncStatus === 'diverged'}
-                      style={menuItemStyle(syncStatus === 'no-upstream' || syncStatus === 'diverged')}
-                      onMouseEnter={e => { if (syncStatus !== 'no-upstream' && syncStatus !== 'diverged') e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <span>⬇️</span> Pull {behindCount > 0 && `(${behindCount})`}
-                      <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>⌘P</span>
-                    </button>
+                    {/* Vista para estado Divergido */}
+                    {syncStatus === 'diverged' ? (
+                      <div style={{ padding: '10px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: '1.4' }}>
+                          Tu rama local y la remota tienen commits diferentes. Elige una acción:
+                        </div>
+                        
+                        {/* Opción recomendada: Force Push */}
+                        <button
+                          onClick={() => handlePush(true)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#f87171',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            marginBottom: '8px'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                            e.currentTarget.style.borderColor = '#ef4444';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', fontSize: '12px' }}>
+                            ⚠️ Force Push <span style={{ fontSize: '9px', background: 'var(--yellow)', color: 'black', padding: '1px 4px', borderRadius: '3px' }}>Recomendado (Squash/Rebase)</span>
+                          </div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Sobrescribe el remoto con tus commits locales (peligroso si otros trabajan aquí).
+                          </div>
+                        </button>
 
-                    {/* Push / Publicar */}
-                    <button
-                      onClick={() => handlePush(false)}
-                      style={{ ...menuItemStyle(), borderBottom: 'none' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                    >
-                      <span>{syncStatus === 'no-upstream' ? '☁️' : '⬆️'}</span>
-                      {syncStatus === 'no-upstream' ? 'Publicar rama' : `Push ${aheadCount > 0 ? `(${aheadCount})` : ''}`}
-                      <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>⌘⇧P</span>
-                    </button>
+                        {/* Opción alternativa: Pull & Merge */}
+                        <button
+                          onClick={handlePull}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            color: '#60a5fa',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)';
+                            e.currentTarget.style.borderColor = '#3b82f6';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', fontSize: '12px' }}>
+                            ⬇️ Pull & Merge
+                          </div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Trae los cambios remotos e incorpóralos creando un commit de combinación (merge).
+                          </div>
+                        </button>
+                      </div>
+                    ) : (
+                      // Vista estándar para otros estados
+                      <>
+                        {/* Pull */}
+                        <button
+                          onClick={handlePull}
+                          disabled={syncStatus === 'no-upstream'}
+                          style={menuItemStyle(syncStatus === 'no-upstream')}
+                          onMouseEnter={e => { if (syncStatus !== 'no-upstream') e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span>⬇️</span> Pull {behindCount > 0 && `(${behindCount})`}
+                          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>⌘P</span>
+                        </button>
 
-                    <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+                        {/* Push / Publicar */}
+                        <button
+                          onClick={() => handlePush(false)}
+                          style={{ ...menuItemStyle(), borderBottom: 'none' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span>{syncStatus === 'no-upstream' ? '☁️' : '⬆️'}</span>
+                          {syncStatus === 'no-upstream' ? 'Publicar rama' : `Push ${aheadCount > 0 ? `(${aheadCount})` : ''}`}
+                          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>⌘⇧P</span>
+                        </button>
 
-                    {/* Force Push */}
-                    <button
-                      onClick={() => handlePush(true)}
-                      disabled={syncStatus === 'no-upstream'}
-                      style={{
-                        ...menuItemStyle(syncStatus === 'no-upstream'),
-                        color: syncStatus === 'no-upstream' ? 'var(--text-muted)' : 'var(--red)',
-                        borderBottom: 'none',
-                        background: syncStatus === 'diverged' ? 'rgba(255,165,0,0.06)' : 'transparent'
-                      }}
-                      onMouseEnter={e => { if (syncStatus !== 'no-upstream') e.currentTarget.style.background = 'var(--red-bg)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = syncStatus === 'diverged' ? 'rgba(255,165,0,0.06)' : 'transparent'; }}
-                    >
-                      <span>⚠️</span>
-                      Force Push {syncStatus === 'diverged' && <span style={{ fontSize: '10px', color: 'var(--yellow)', marginLeft: '4px' }}>← recomendado</span>}
-                      <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--red)' }}>peligroso</span>
-                    </button>
+                        <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+
+                        {/* Force Push */}
+                        <button
+                          onClick={() => handlePush(true)}
+                          disabled={syncStatus === 'no-upstream'}
+                          style={{
+                            ...menuItemStyle(syncStatus === 'no-upstream'),
+                            color: syncStatus === 'no-upstream' ? 'var(--text-muted)' : 'var(--red)',
+                            borderBottom: 'none',
+                            background: 'transparent'
+                          }}
+                          onMouseEnter={e => { if (syncStatus !== 'no-upstream') e.currentTarget.style.background = 'var(--red-bg)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span>⚠️</span>
+                          Force Push
+                          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--red)' }}>peligroso</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

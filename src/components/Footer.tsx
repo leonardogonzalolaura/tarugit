@@ -65,7 +65,7 @@ export function Footer({ repoPath, currentBranch, fileCount = 0 }: FooterProps) 
           <span className="footer-brand-icon">♉</span>
           TaruGit
         </span>
-        <span className="footer-git-version">v0.1.6</span>
+        <span className="footer-git-version">v0.1.7</span>
       </div>
 
       {/* Derecha: fecha y hora */}
