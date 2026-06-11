@@ -25,7 +25,7 @@ impl WatcherState {
         }
     }
 
-    /// Inicia (o reinicia) el watcher para `repo_path/.git`.
+    /// Inicia (o reinicia) el watcher para `repo_path`.
     /// Si ya había uno activo, lo detiene primero.
     pub fn start(&self, repo_path: PathBuf, app: AppHandle) -> Result<(), String> {
         let git_dir = repo_path.join(".git");
@@ -45,7 +45,7 @@ impl WatcherState {
         // Detener el watcher anterior.
         self.stop();
 
-        log::info!("[watcher] Iniciando watcher en {:?}", git_dir);
+        log::info!("[watcher] Iniciando watcher en {:?}", repo_path);
 
         // Crear el debouncer con 500ms de espera para agrupar eventos rápidos.
         let debouncer = new_debouncer(
@@ -53,7 +53,6 @@ impl WatcherState {
             move |result: DebounceEventResult| {
                 match result {
                     Ok(events) => {
-                        // Filtrar rutas irrelevantes (ej: FETCH_HEAD se actualiza muy seguido).
                         if should_emit(&events) {
                             log::info!("[watcher] Cambio detectado → emitiendo repo-changed");
                             if let Err(e) = app.emit("repo-changed", ()) {
@@ -69,11 +68,11 @@ impl WatcherState {
         )
         .map_err(|e| format!("Error creando watcher: {}", e))?;
 
-        // Registrar el directorio .git recursivamente.
+        // Registrar el directorio del repositorio recursivamente.
         let mut debouncer = debouncer;
         debouncer
             .watcher()
-            .watch(&git_dir, notify::RecursiveMode::Recursive)
+            .watch(&repo_path, notify::RecursiveMode::Recursive)
             .map_err(|e| format!("Error registrando directorio: {}", e))?;
 
         // Guardar el guard y la ruta actual.
@@ -107,12 +106,29 @@ const IGNORED_SUFFIXES: &[&str] = &[
 fn should_emit(events: &[DebouncedEvent]) -> bool {
     for event in events {
         let path_str = event.path.to_string_lossy();
-        let is_ignored = IGNORED_SUFFIXES
-            .iter()
-            .any(|suffix| path_str.ends_with(suffix));
-        if !is_ignored {
-            return true;
+        
+        // Ignorar carpetas pesadas/de compilación
+        if path_str.contains("node_modules") 
+            || path_str.contains("target") 
+            || path_str.contains("dist") 
+            || path_str.contains("build")
+            || path_str.contains(".git/logs")
+        {
+            continue;
         }
+
+        // Si es dentro de .git, ignorar archivos temporales o de bloqueo
+        if path_str.contains(".git") {
+            let is_ignored = IGNORED_SUFFIXES
+                .iter()
+                .any(|suffix| path_str.ends_with(suffix));
+            if is_ignored {
+                continue;
+            }
+        }
+
+        // Si llegó hasta aquí, es un cambio relevante
+        return true;
     }
     false
 }
