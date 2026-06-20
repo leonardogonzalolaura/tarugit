@@ -77,6 +77,64 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* ─── Title Bar ─────────────────────────────────────────── */
+.titlebar {
+  height: 32px;
+  min-height: 32px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 100%;
+}
+
+.titlebar-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.titlebar-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: .3px;
+}
+
+.titlebar-center {
+  flex: 1;
+  height: 100%;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background .1s;
+}
+.titlebar-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.titlebar-btn--close:hover { background: #e81123; color: #fff; }
+
 /* ─── Navbar ────────────────────────────────────────── */
 .navbar {
   height: var(--navbar-h);
@@ -363,19 +421,19 @@ html, body, #root {
   top: 50%;
   right: 0;
   transform: translateY(-50%) translateX(50%);
-  width: 20px;
-  height: 40px;
+  width: 18px;
+  height: 36px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
-  border-radius: 6px;
+  border-radius: 0 5px 5px 0;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
-  transition: all 0.15s;
+  transition: all .12s;
   padding: 0;
   line-height: 1;
 }
@@ -384,6 +442,21 @@ html, body, #root {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--accent-dim);
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 55;
+  transition: background .15s;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.active {
+  background: var(--accent-dim);
 }
 
 /* ─── File Section ────────────────────────────────────────────────────────── */

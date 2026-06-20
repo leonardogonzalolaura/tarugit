@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Navbar } from './components/Navbar';
+import { TitleBar } from './components/TitleBar';
 import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager';
 import { FileList } from './components/FileList';
 import { DiffViewer } from './components/DiffViewer';
@@ -55,6 +56,25 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const onMove = (e: MouseEvent) => {
+      const w = Math.max(180, Math.min(500, e.clientX));
+      setSidebarWidth(w);
+    };
+    const onUp = () => setIsResizing(false);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, [isResizing]);
 
   const makeCommit = useCallback(async (message: string, user?: { name: string; email: string }, amend?: boolean) => {
     setLoading(true);
@@ -171,6 +191,7 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="app">
+        <TitleBar />
         <ToastContainer />
         <Navbar
           repoInfo={repoInfo}
@@ -222,7 +243,8 @@ function App() {
         )}
 
         <div className="layout">
-          <div className={`left-col${sidebarCollapsed ? ' left-col--collapsed' : ''}`}>
+          <div ref={sidebarRef} className={`left-col${sidebarCollapsed ? ' left-col--collapsed' : ''}`}
+            style={{ width: sidebarCollapsed ? 24 : sidebarWidth, minWidth: sidebarCollapsed ? 24 : sidebarWidth }}>
             <button
               className="sidebar-toggle"
               onClick={() => setSidebarCollapsed(v => !v)}
@@ -230,6 +252,11 @@ function App() {
             >
               {sidebarCollapsed ? '›' : '‹'}
             </button>
+            {!sidebarCollapsed && (
+              <div className={`sidebar-resize-handle${isResizing ? ' active' : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+              />
+            )}
 
             {!sidebarCollapsed && repoInfo && (
               <>
