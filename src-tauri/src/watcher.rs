@@ -6,14 +6,10 @@ use std::{
 };
 use tauri::{AppHandle, Emitter};
 
-/// Guard que mantiene vivo el debouncer. Al soltarse, el watcher se destruye.
 type WatcherGuard = Box<dyn std::any::Any + Send>;
 
-/// Estado global del watcher, almacenado en `tauri::State`.
 pub struct WatcherState {
-    /// Watcher activo. `None` si no hay repo abierto.
     inner: Mutex<Option<WatcherGuard>>,
-    /// Ruta vigilada actualmente.
     current_path: Mutex<Option<PathBuf>>,
 }
 
@@ -25,29 +21,25 @@ impl WatcherState {
         }
     }
 
-    /// Inicia (o reinicia) el watcher para `repo_path`.
-    /// Si ya había uno activo, lo detiene primero.
     pub fn start(&self, repo_path: PathBuf, app: AppHandle) -> Result<(), String> {
         let git_dir = repo_path.join(".git");
         if !git_dir.exists() {
             return Err(format!("No se encontró directorio .git en {:?}", repo_path));
         }
 
-        // Si ya estamos vigilando la misma ruta, no hacemos nada.
         {
-            let current = self.current_path.lock().unwrap();
+            let current = self.current_path.lock()
+                .map_err(|e| format!("Error al bloquear current_path: {}", e))?;
             if current.as_deref() == Some(repo_path.as_path()) {
                 log::info!("[watcher] Ya se está vigilando {:?}, omitiendo reinicio", repo_path);
                 return Ok(());
             }
         }
 
-        // Detener el watcher anterior.
         self.stop();
 
         log::info!("[watcher] Iniciando watcher en {:?}", repo_path);
 
-        // Crear el debouncer con 500ms de espera para agrupar eventos rápidos.
         let debouncer = new_debouncer(
             Duration::from_millis(500),
             move |result: DebounceEventResult| {
@@ -68,33 +60,48 @@ impl WatcherState {
         )
         .map_err(|e| format!("Error creando watcher: {}", e))?;
 
-        // Registrar el directorio del repositorio recursivamente.
         let mut debouncer = debouncer;
         debouncer
             .watcher()
             .watch(&repo_path, notify::RecursiveMode::Recursive)
             .map_err(|e| format!("Error registrando directorio: {}", e))?;
 
-        // Guardar el guard y la ruta actual.
-        *self.inner.lock().unwrap() = Some(Box::new(debouncer));
-        *self.current_path.lock().unwrap() = Some(repo_path);
+        if let Ok(mut inner) = self.inner.lock() {
+            *inner = Some(Box::new(debouncer));
+        } else {
+            log::error!("[watcher] No se pudo bloquear inner para guardar el watcher");
+        }
+
+        if let Ok(mut current) = self.current_path.lock() {
+            *current = Some(repo_path);
+        } else {
+            log::error!("[watcher] No se pudo bloquear current_path para guardar la ruta");
+        }
 
         Ok(())
     }
 
-    /// Detiene el watcher activo.
     pub fn stop(&self) {
-        let mut guard = self.inner.lock().unwrap();
-        if guard.is_some() {
-            log::info!("[watcher] Deteniendo watcher anterior");
-            *guard = None;
+        match self.inner.lock() {
+            Ok(mut guard) => {
+                if guard.is_some() {
+                    log::info!("[watcher] Deteniendo watcher anterior");
+                    *guard = None;
+                }
+            }
+            Err(e) => {
+                log::error!("[watcher] Error al bloquear inner en stop: {}", e);
+                return;
+            }
         }
-        *self.current_path.lock().unwrap() = None;
+
+        match self.current_path.lock() {
+            Ok(mut current) => *current = None,
+            Err(e) => log::error!("[watcher] Error al bloquear current_path en stop: {}", e),
+        }
     }
 }
 
-/// Rutas dentro de `.git` que se ignoran porque cambian con mucha frecuencia
-/// sin indicar cambios reales en el estado del repo para el usuario.
 const IGNORED_SUFFIXES: &[&str] = &[
     "FETCH_HEAD",
     "gc.log",
@@ -106,18 +113,16 @@ const IGNORED_SUFFIXES: &[&str] = &[
 fn should_emit(events: &[DebouncedEvent]) -> bool {
     for event in events {
         let path_str = event.path.to_string_lossy();
-        
-        // Ignorar carpetas pesadas/de compilación
-        if path_str.contains("node_modules") 
-            || path_str.contains("target") 
-            || path_str.contains("dist") 
+
+        if path_str.contains("node_modules")
+            || path_str.contains("target")
+            || path_str.contains("dist")
             || path_str.contains("build")
             || path_str.contains(".git/logs")
         {
             continue;
         }
 
-        // Si es dentro de .git, ignorar archivos temporales o de bloqueo
         if path_str.contains(".git") {
             let is_ignored = IGNORED_SUFFIXES
                 .iter()
@@ -127,7 +132,6 @@ fn should_emit(events: &[DebouncedEvent]) -> bool {
             }
         }
 
-        // Si llegó hasta aquí, es un cambio relevante
         return true;
     }
     false
