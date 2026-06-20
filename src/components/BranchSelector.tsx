@@ -386,9 +386,6 @@ export function BranchSelector({
         <div className="branch-action-content">
           <h4>Merge</h4>
           <p>Fusionar <strong>{selectedBranchForAction}</strong> en <strong>{currentBranch}</strong></p>
-          <div className="branch-action-info">
-            Se creará un merge commit combinando el historial de ambas ramas.
-          </div>
           <div className="branch-action-actions">
             <button onClick={() => setShowMergeModal(false)}>Cancelar</button>
             <button onClick={() => selectedBranchForAction && handleMerge(selectedBranchForAction)}>
@@ -406,10 +403,7 @@ export function BranchSelector({
       <div className="branch-action-modal">
         <div className="branch-action-content">
           <h4>Rebase</h4>
-          <p>Reubicar <strong>{currentBranch}</strong> sobre <strong>{selectedBranchForAction}</strong></p>
-          <div className="branch-action-info">
-            Los commits de tu rama actual se re-aplicarán sobre la punta de la rama destino, resultando en un historial lineal.
-          </div>
+          <p>Esto actualizará <strong>{currentBranch}</strong> aplicando sus commits sobre la punta de <strong>{selectedBranchForAction}</strong>, resultando en un historial lineal.</p>
           <div className="branch-action-actions">
             <button onClick={() => setShowRebaseModal(false)}>Cancelar</button>
             <button onClick={() => selectedBranchForAction && handleRebase(selectedBranchForAction)}>

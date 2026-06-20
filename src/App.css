@@ -121,13 +121,17 @@ html, body, #root {
   border-right: 1px solid var(--border);
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   font-family: var(--font-sans);
   transition: background .12s;
 }
 .navbar-repo-btn:hover { background: var(--bg-hover); }
 
+.navbar-repo-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
 .navbar-repo-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1430,6 +1434,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   cursor: pointer;
   transition: background .12s;
   height: 100%;
+  width: var(--sidebar-w);
 }
 
 .branch-selector-trigger:hover {
@@ -1438,7 +1443,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 .branch-selector-current {
   font-weight: 500;
-  max-width: 200px;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1452,13 +1457,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 /* Dropdown */
 .branch-selector-dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 100%;
   right: 0;
-  width: 320px;
+  width: 360px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 8px 8px;
+  box-shadow: var(--shadow-lg);
   z-index: 1000;
   overflow: hidden;
 }
