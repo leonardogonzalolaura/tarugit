@@ -8,7 +8,7 @@ export interface CommitUser {
 interface CommitPanelProps {
   fileCount: number;
   loading: boolean;
-  onCommit: (message: string, user?: CommitUser) => void;
+  onCommit: (message: string, user?: CommitUser, amend?: boolean) => void;
   users?: CommitUser[];
   onAddUser?: () => void;
   onStashClick?: () => void;
@@ -18,16 +18,16 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
   const [message, setMessage] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState<number>(0);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-
-
+  const [amend, setAmend] = useState(false);
 
   if (fileCount === 0) return null;
 
   const handleCommit = () => {
     if (!message.trim()) return;
     const user = users.length > 0 && selectedUserIndex < users.length ? users[selectedUserIndex] : undefined;
-    onCommit(message, user);
+    onCommit(message, user, amend);
     setMessage('');
+    setAmend(false);
   };
 
   const charLimit = 72;
@@ -37,86 +37,27 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
   return (
     <div className="commit-panel">
       <div className="commit-header">
-        <span className="commit-title">✨ Commit</span>
+        <span className="commit-title">Commit</span>
         <span className="commit-count">{fileCount} archivo{fileCount !== 1 ? 's' : ''}</span>
       </div>
 
-
-
       {users.length > 0 && (
-        <div className="commit-user-select" style={{ marginBottom: '12px' }}>
-          <div style={{ fontSize: '11px', marginBottom: '6px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Autor
-          </div>
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                background: 'var(--bg-secondary, #1e1e1e)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                color: 'var(--text-primary)',
-                fontSize: '13px',
-                textAlign: 'left',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
-              <span>
-                {users[selectedUserIndex]?.name} &lt;{users[selectedUserIndex]?.email}&gt;
-              </span>
+        <div style={{ marginBottom: '12px' }}>
+          <div className="commit-user-label">Autor</div>
+          <div className="user-dropdown-wrapper">
+            <button className="user-dropdown-btn" onClick={() => setShowUserDropdown(!showUserDropdown)}>
+              <span>{users[selectedUserIndex]?.name} &lt;{users[selectedUserIndex]?.email}&gt;</span>
               <span>▼</span>
             </button>
 
             {showUserDropdown && (
               <>
-                <div
-                  style={{ position: 'fixed', inset: 0, zIndex: 998 }}
-                  onClick={() => setShowUserDropdown(false)}
-                />
-                <div style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: '4px',
-                  background: 'var(--bg-secondary, #1e1e1e)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  zIndex: 999,
-                  overflow: 'hidden'
-                }}>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setShowUserDropdown(false)} />
+                <div className="user-dropdown-menu">
                   {users.map((u, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setSelectedUserIndex(idx);
-                        setShowUserDropdown(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        background: selectedUserIndex === idx ? 'var(--accent, #4f46e5)' : 'transparent',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '12px'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (selectedUserIndex !== idx) {
-                          e.currentTarget.style.background = 'var(--bg-hover, #3a3a3a)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (selectedUserIndex !== idx) {
-                          e.currentTarget.style.background = 'transparent';
-                        }
-                      }}
+                    <button key={idx}
+                      className={`user-dropdown-item ${selectedUserIndex === idx ? 'user-dropdown-item--active' : ''}`}
+                      onClick={() => { setSelectedUserIndex(idx); setShowUserDropdown(false); }}
                     >
                       {u.name} &lt;{u.email}&gt;
                     </button>
@@ -124,22 +65,8 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
                   {onAddUser && (
                     <>
                       <hr style={{ borderColor: 'var(--border)', margin: '4px 0' }} />
-                      <button
-                        onClick={() => {
-                          onAddUser();
-                          setShowUserDropdown(false);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          textAlign: 'left',
-                          background: 'transparent',
-                          color: 'var(--text-muted)',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
+                      <button className="user-dropdown-item user-dropdown-item--add"
+                        onClick={() => { onAddUser(); setShowUserDropdown(false); }}>
                         + Agregar nuevo usuario...
                       </button>
                     </>
@@ -150,8 +77,6 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
           </div>
         </div>
       )}
-
-
 
       <div className="commit-input-wrap">
         <textarea
@@ -170,6 +95,18 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
         </div>
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={amend}
+            onChange={(e) => setAmend(e.target.checked)}
+            style={{ accentColor: 'var(--accent)' }}
+          />
+          Amend (modificar último commit)
+        </label>
+      </div>
+
       <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
         <button
           onClick={handleCommit}
@@ -177,19 +114,13 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
           className="btn-commit"
           style={{ flex: 1, margin: 0 }}
         >
-          {loading ? <span className="spinner-sm" /> : '🚀'} Hacer Commit
+          {loading ? <span className="spinner-sm" /> : '🚀'} {amend ? 'Amendar Commit' : 'Hacer Commit'}
         </button>
         {onStashClick && (
-          <button
-            type="button"
-            onClick={onStashClick}
-            disabled={loading}
-            className="btn-secondary"
-            style={{ padding: '0 14px', whiteSpace: 'nowrap' }}
+          <button type="button" onClick={onStashClick} disabled={loading}
+            className="btn-secondary" style={{ padding: '0 14px', whiteSpace: 'nowrap' }}
             title="Guardar cambios en Stash"
-          >
-            📦 Stash...
-          </button>
+          >📦 Stash...</button>
         )}
       </div>
     </div>

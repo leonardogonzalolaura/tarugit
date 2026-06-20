@@ -341,25 +341,53 @@ pub fn resolve_conflict(repo_path: String, file_path: String, merged_text: Strin
 // ─── Commit ───────────────────────────────────────────────────────────────────
 
 #[command]
-pub fn commit_changes(repo_path: String, message: String, author_name: Option<String>, author_email: Option<String>) -> Result<String, String> {
+pub fn commit_changes(repo_path: String, message: String, author_name: Option<String>, author_email: Option<String>, amend: Option<bool>) -> Result<String, String> {
     log::info!("Haciendo commit en: {} con mensaje: {}", repo_path, message);
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let mut index = repo.index().map_err(|e| e.to_string())?;
-    index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None).map_err(|e| e.to_string())?;
-    index.write().map_err(|e| e.to_string())?;
     
-    let name = author_name.unwrap_or_else(|| "Git Editor User".to_string());
-    let email = author_email.unwrap_or_else(|| "user@example.com".to_string());
-    let signature = Signature::now(&name, &email).map_err(|e| e.to_string())?;
+    let is_amend = amend.unwrap_or(false);
     
-    let tree_id = index.write_tree().map_err(|e| e.to_string())?;
-    let tree = repo.find_tree(tree_id).map_err(|e| e.to_string())?;
-    let parent_commit = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
-    let parents: Vec<&Commit> = parent_commit.as_ref().map_or(vec![], |p| vec![p]);
-    let commit_id = repo.commit(Some("HEAD"), &signature, &signature, &message, &tree, &parents)
-        .map_err(|e| e.to_string())?;
-    log::info!("Commit creado: {}", commit_id);
-    Ok(format!("✅ Commit creado: {}", commit_id))
+    if is_amend {
+        let mut cmd = create_git_command();
+        cmd.args(["commit", "--amend", "-m", &message])
+            .current_dir(&repo_path);
+        
+        if let Some(name) = &author_name {
+            cmd.env("GIT_AUTHOR_NAME", name);
+            cmd.env("GIT_COMMITTER_NAME", name);
+        }
+        if let Some(email) = &author_email {
+            cmd.env("GIT_AUTHOR_EMAIL", email);
+            cmd.env("GIT_COMMITTER_EMAIL", email);
+        }
+        
+        let output = cmd.output().map_err(|e| format!("Error ejecutando git commit --amend: {}", e))?;
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::info!("Commit amendado correctamente");
+            Ok(format!("Commit amendado: {}", stdout.trim()))
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Error al amendar commit: {}", stderr))
+        }
+    } else {
+        let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+        let mut index = repo.index().map_err(|e| e.to_string())?;
+        index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None).map_err(|e| e.to_string())?;
+        index.write().map_err(|e| e.to_string())?;
+        
+        let name = author_name.unwrap_or_else(|| "Git Editor User".to_string());
+        let email = author_email.unwrap_or_else(|| "user@example.com".to_string());
+        let signature = Signature::now(&name, &email).map_err(|e| e.to_string())?;
+        
+        let tree_id = index.write_tree().map_err(|e| e.to_string())?;
+        let tree = repo.find_tree(tree_id).map_err(|e| e.to_string())?;
+        let parent_commit = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+        let parents: Vec<&Commit> = parent_commit.as_ref().map_or(vec![], |p| vec![p]);
+        let commit_id = repo.commit(Some("HEAD"), &signature, &signature, &message, &tree, &parents)
+            .map_err(|e| e.to_string())?;
+        log::info!("Commit creado: {}", commit_id);
+        Ok(format!("Commit creado: {}", commit_id))
+    }
 }
 
 // ─── Discard / Stage ──────────────────────────────────────────────────────────
@@ -1252,6 +1280,124 @@ pub async fn pull_branch(repo_path: String, branch_name: String) -> Result<Strin
             Ok(stdout)
         } else {
             Err(format!("Error en git pull:\n{}\n{}", stdout, stderr))
+        }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+// ─── Tags ───────────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Debug)]
+pub struct TagInfo {
+    pub name: String,
+    pub commit_id: String,
+    pub message: String,
+}
+
+#[command]
+pub async fn list_tags(repo_path: String) -> Result<Vec<TagInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Listando tags en: {}", repo_path);
+        
+        let output = create_git_command()
+            .args(["tag", "-l", "--sort=-creatordate"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git tag: {}", e))?;
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let tags: Vec<TagInfo> = stdout.lines()
+            .filter(|l| !l.is_empty())
+            .map(|name| {
+                let info = get_tag_info(&repo_path, name);
+                TagInfo {
+                    name: name.to_string(),
+                    commit_id: info.0,
+                    message: info.1,
+                }
+            })
+            .collect();
+        
+        Ok(tags)
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+fn get_tag_info(repo_path: &str, tag_name: &str) -> (String, String) {
+    let commit_id = create_git_command()
+        .args(["rev-list", "-1", tag_name])
+        .current_dir(repo_path)
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+            } else { None }
+        })
+        .unwrap_or_default();
+    
+    let message = create_git_command()
+        .args(["tag", "-l", "--format=%(contents)", tag_name])
+        .current_dir(repo_path)
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if s.is_empty() { None } else { Some(s) }
+            } else { None }
+        })
+        .unwrap_or_default();
+    
+    (commit_id, message)
+}
+
+#[command]
+pub async fn create_tag(repo_path: String, tag_name: String, message: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Creando tag {} en: {}", tag_name, repo_path);
+        
+        let mut cmd = create_git_command();
+        cmd.args(["tag"]);
+        if let Some(msg) = &message {
+            cmd.args(["-a", &tag_name, "-m", msg]);
+        } else {
+            cmd.arg(&tag_name);
+        }
+        cmd.current_dir(&repo_path);
+        
+        let output = cmd.output()
+            .map_err(|e| format!("Error ejecutando git tag: {}", e))?;
+        
+        if output.status.success() {
+            Ok(format!("Tag '{}' creado correctamente", tag_name))
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Error al crear tag: {}", stderr))
+        }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+#[command]
+pub async fn delete_tag(repo_path: String, tag_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Eliminando tag {} en: {}", tag_name, repo_path);
+        
+        let output = create_git_command()
+            .args(["tag", "-d", &tag_name])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git tag -d: {}", e))?;
+        
+        if output.status.success() {
+            Ok(format!("Tag '{}' eliminado correctamente", tag_name))
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Error al eliminar tag: {}", stderr))
         }
     })
     .await

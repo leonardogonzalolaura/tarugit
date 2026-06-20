@@ -1822,4 +1822,202 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(12px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* ── Sync Button (Navbar) ──────────────────────────────────── */
+.sync-btn-group {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.sync-btn-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sync-btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
+.sync-btn-main:not(:disabled):hover { background: var(--bg-hover); border-color: var(--accent); }
+.sync-btn-main--diverged { border-color: var(--yellow); }
+.sync-btn-main--diverged:not(:disabled):hover { border-color: var(--yellow); }
+.sync-btn-main--no-upstream { border-color: var(--accent); }
+
+.sync-btn-dropdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-primary);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sync-btn-dropdown:disabled { opacity: 0.5; cursor: not-allowed; }
+.sync-btn-dropdown:not(:disabled):hover { background: var(--bg-hover); border-color: var(--accent); }
+
+/* ── Navbar Menu (sync dropdown) ──────────────────────────── */
+.navbar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.navbar-menu-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.navbar-menu-item {
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
+  font-family: var(--font-mono);
+}
+.navbar-menu-item:disabled { color: var(--text-muted); cursor: not-allowed; }
+.navbar-menu-item:not(:disabled):hover { background: var(--bg-hover); }
+.navbar-menu-item--danger { color: var(--red); }
+.navbar-menu-item--danger:not(:disabled):hover { background: var(--red-bg); }
+
+/* ── Confirm Modal ────────────────────────────────────────── */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: var(--shadow-md);
+}
+
+.confirm-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+.confirm-title--danger { color: var(--red); }
+
+.confirm-body {
+  margin: 0 0 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── User Dropdown (CommitPanel) ──────────────────────────── */
+.user-dropdown-wrapper {
+  position: relative;
+}
+
+.user-dropdown-btn {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 999;
+  overflow: hidden;
+}
+
+.user-dropdown-item {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.user-dropdown-item:hover { background: var(--bg-hover); }
+.user-dropdown-item--active { background: var(--accent); color: #fff; }
+.user-dropdown-item--add { color: var(--text-muted); }
+.user-dropdown-item--add:hover { background: var(--bg-hover); }
+
+/* ── Navbar repo select ───────────────────────────────────── */
+.navbar-repo-select {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-elevated);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  width: 320px;
+  outline: none;
+}
+
+/* ── Commit user label ────────────────────────────────────── */
+.commit-user-label {
+  font-size: 11px;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }

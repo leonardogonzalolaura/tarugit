@@ -62,6 +62,9 @@ pub fn run() {
             commands::git_ops::drop_stash,
             commands::git_ops::git_status_remote,
             commands::git_ops::pull_branch,
+            commands::git_ops::list_tags,
+            commands::git_ops::create_tag,
+            commands::git_ops::delete_tag,
             // Watcher commands
             start_repo_watcher,
             stop_repo_watcher,
