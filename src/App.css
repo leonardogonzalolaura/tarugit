@@ -86,7 +86,7 @@ html, body, #root {
   display: flex;
   align-items: stretch;
   position: relative;
-  z-index: 10;
+  z-index: 60;
 }
 
 .navbar-left {
@@ -168,8 +168,8 @@ html, body, #root {
 
 .navbar-repo-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   padding: 10px 14px;
   text-align: left;
@@ -177,11 +177,18 @@ html, body, #root {
   border: none;
   border-bottom: 1px solid var(--border-light);
   cursor: pointer;
-  gap: 2px;
   transition: background .1s;
 }
 .navbar-repo-item:hover { background: var(--bg-hover); }
 .navbar-repo-item.active { background: var(--bg-selected); }
+
+.navbar-repo-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
 
 .navbar-repo-item-name {
   font-size: 13px;
@@ -196,6 +203,13 @@ html, body, #root {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+.navbar-repo-check {
+  font-size: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .navbar-repo-dropdown-footer {
@@ -1450,15 +1464,12 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 
 .branch-selector-header {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .branch-selector-search {
-  flex: 1;
+  width: 100%;
   padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1466,6 +1477,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   color: var(--text-primary);
   font-size: 12px;
   outline: none;
+  box-sizing: border-box;
 }
 
 .branch-selector-search:focus {
@@ -1475,13 +1487,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .branch-selector-actions {
   display: flex;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
 
 .branch-selector-action-btn {
   flex: 1;
-  padding: 6px 0;
+  padding: 5px 0;
   font-size: 11px;
   font-weight: 500;
   background: var(--bg-surface);
@@ -1494,9 +1506,24 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 .branch-selector-action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
+/* Section headers */
+.branch-selector-section {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted);
+  padding: 8px 10px 4px;
+}
+.branch-selector-section.border-top {
+  border-top: 1px solid var(--border-light);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
 /* Lista de ramas */
 .branch-selector-list {
-  max-height: 300px;
+  max-height: 280px;
   overflow-y: auto;
 }
 
@@ -1504,8 +1531,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-light);
+  padding: 6px 10px;
   transition: background .1s;
 }
 
@@ -1536,11 +1562,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 
 .branch-selector-item-icon {
-  font-size: 12px;
-  color: var(--text-muted);
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  color: var(--text-muted);
 }
 
 .branch-selector-item-main.current .branch-selector-item-icon {
@@ -1560,20 +1585,32 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .branch-selector-item-badge {
   font-size: 9px;
   padding: 1px 6px;
-  background: var(--accent-dim);
-  color: var(--accent);
   border-radius: 10px;
   flex-shrink: 0;
+  font-weight: 500;
+}
+.branch-selector-item-badge.is-current {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.branch-selector-item-badge.is-remote {
+  background: rgba(59,130,246,.15);
+  color: #60a5fa;
 }
 
 .branch-selector-item-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.branch-selector-item:hover .branch-selector-item-actions {
+  opacity: 1;
 }
 
 .branch-action-icon {
-  padding: 3px 5px;
+  padding: 2px 4px;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -1581,10 +1618,15 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   font-size: 10px;
   transition: all .12s;
   line-height: 1;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
 }
 
 .branch-action-icon:hover {
   background: var(--bg-base);
+  color: var(--text-primary);
+  border-color: var(--accent-dim);
 }
 
 .branch-selector-loading {
@@ -1612,59 +1654,79 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .branch-dirty-content,
 .branch-action-content {
   background: var(--bg-elevated);
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 400px;
-  text-align: center;
-}
-
-.branch-dirty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  border-radius: 10px;
+  padding: 20px 24px;
+  width: 380px;
+  box-shadow: var(--shadow-lg);
 }
 
 .branch-dirty-content h4,
 .branch-action-content h4 {
-  margin: 0 0 8px 0;
-  font-size: 18px;
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .branch-dirty-content p,
 .branch-action-content p {
   margin: 0 0 20px 0;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.branch-dirty-content p strong,
+.branch-action-content p strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.branch-action-info {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .branch-dirty-actions,
 .branch-action-actions {
   display: flex;
-  gap: 12px;
-  justify-content: center;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .branch-dirty-actions button,
 .branch-action-actions button {
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: var(--bg-base);
+  background: var(--bg-surface);
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  transition: all 0.2s;
+  transition: all .15s;
+}
+
+.branch-dirty-actions button:hover,
+.branch-action-actions button:hover {
+  background: var(--bg-hover);
 }
 
 .branch-dirty-actions button:last-child,
 .branch-action-actions button:last-child {
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: #fff;
 }
 
-.branch-dirty-actions button:hover,
-.branch-action-actions button:hover {
-  transform: translateY(-1px);
+.branch-dirty-actions button:last-child:hover,
+.branch-action-actions button:last-child:hover {
+  background: var(--accent-dim);
 }
 .branch-selector-empty {
   padding: 20px;

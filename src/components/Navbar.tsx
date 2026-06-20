@@ -145,8 +145,11 @@ export function Navbar({
               {repos.map(r => (
                 <button key={r.id} className={`navbar-repo-item ${r.path === activeRepoPath ? 'active' : ''}`}
                   onClick={() => { onSelectRepo(r.path); setShowRepoDropdown(false); }}>
-                  <span className="navbar-repo-item-name">{r.name}</span>
-                  <span className="navbar-repo-item-path">{r.path}</span>
+                  <span className="navbar-repo-item-info">
+                    <span className="navbar-repo-item-name">{r.name}</span>
+                    <span className="navbar-repo-item-path">{r.path}</span>
+                  </span>
+                  {r.path === activeRepoPath && <span className="navbar-repo-check">✓</span>}
                 </button>
               ))}
               <div className="navbar-repo-dropdown-footer">

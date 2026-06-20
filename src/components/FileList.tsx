@@ -152,7 +152,7 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
       )}
 
       {repoPath && filteredFiles.length > 0 && (
-        <div style={{ display: 'flex', gap: '4px', padding: '0 8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '4px', padding: '6px 8px 0', alignItems: 'center' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 10, color: 'var(--text-muted)', cursor: 'pointer' }}>
             <input type="checkbox" checked={selectedFiles.size === filteredFiles.length && filteredFiles.length > 0}
               onChange={selectAll} style={{ accentColor: 'var(--accent)' }} />

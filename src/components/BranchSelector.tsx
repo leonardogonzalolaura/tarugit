@@ -361,9 +361,8 @@ export function BranchSelector({
     return (
       <div className="branch-dirty-modal">
         <div className="branch-dirty-content">
-          <div className="branch-dirty-icon">⚠️</div>
-          <h4>Cambios sin commitear</h4>
-          <p>¿Qué deseas hacer al cambiar a <strong>{dirtyTarget}</strong>?</p>
+          <h4>Cambios sin confirmar</h4>
+          <p>Al cambiar a <strong>{dirtyTarget}</strong> tus cambios locales se perderán si no los confirmas o llevas contigo.</p>
           <div className="branch-dirty-actions">
             <button onClick={() => {
               setDirtyTarget(null);
@@ -373,7 +372,7 @@ export function BranchSelector({
               const target = dirtyTarget;
               setDirtyTarget(null);
               if (target) await doSwitch(target, true);
-            }}>🚀 Llevar cambios</button>
+            }}>Llevar cambios</button>
           </div>
         </div>
       </div>
@@ -385,12 +384,15 @@ export function BranchSelector({
     return (
       <div className="branch-action-modal">
         <div className="branch-action-content">
-          <h4>🔀 Fusionar rama</h4>
+          <h4>Merge</h4>
           <p>Fusionar <strong>{selectedBranchForAction}</strong> en <strong>{currentBranch}</strong></p>
+          <div className="branch-action-info">
+            Se creará un merge commit combinando el historial de ambas ramas.
+          </div>
           <div className="branch-action-actions">
             <button onClick={() => setShowMergeModal(false)}>Cancelar</button>
             <button onClick={() => selectedBranchForAction && handleMerge(selectedBranchForAction)}>
-              Confirmar Merge
+              Crear merge commit
             </button>
           </div>
         </div>
@@ -403,12 +405,15 @@ export function BranchSelector({
     return (
       <div className="branch-action-modal">
         <div className="branch-action-content">
-          <h4>🔄 Rebase</h4>
-          <p>Rebase de <strong>{currentBranch}</strong> sobre <strong>{selectedBranchForAction}</strong></p>
+          <h4>Rebase</h4>
+          <p>Reubicar <strong>{currentBranch}</strong> sobre <strong>{selectedBranchForAction}</strong></p>
+          <div className="branch-action-info">
+            Los commits de tu rama actual se re-aplicarán sobre la punta de la rama destino, resultando en un historial lineal.
+          </div>
           <div className="branch-action-actions">
             <button onClick={() => setShowRebaseModal(false)}>Cancelar</button>
             <button onClick={() => selectedBranchForAction && handleRebase(selectedBranchForAction)}>
-              Confirmar Rebase
+              Iniciar rebase
             </button>
           </div>
         </div>
@@ -423,7 +428,6 @@ export function BranchSelector({
         <div 
           className={`branch-selector-item-main ${isCurrent ? 'current' : ''}`}
           onClick={() => handleSwitch(branch.name)}
-          style={{ cursor: 'pointer' }}
         >
           <div className="branch-selector-item-info">
             <span className="branch-selector-item-icon">
@@ -431,59 +435,74 @@ export function BranchSelector({
                 <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.5 2.5 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
               </svg>
             </span>
-            <span className="branch-selector-item-name" style={{ wordBreak: 'break-all' }}>
+            <span className="branch-selector-item-name">
               {branch.name}
             </span>
             {isCurrent && (
-              <span className="branch-selector-item-badge">actual</span>
+              <span className="branch-selector-item-badge is-current">actual</span>
             )}
             {branch.is_remote && (
-              <span className="branch-selector-item-badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>remota</span>
+              <span className="branch-selector-item-badge is-remote">remota</span>
             )}
           </div>
         </div>
         
-        {!isCurrent && !branch.is_remote && (
-          <div className="branch-selector-item-actions">
-            <button
-              className="branch-action-icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedBranchForAction(branch.name);
-                setShowMergeModal(true);
-                setIsOpen(false);
-              }}
-              title="Fusionar en rama actual"
-              disabled={isOperating}
-            >
-              🔀
-            </button>
-            <button
-              className="branch-action-icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedBranchForAction(branch.name);
-                setShowRebaseModal(true);
-                setIsOpen(false);
-              }}
-              title="Rebase sobre rama actual"
-              disabled={isOperating}
-            >
-              🔄
-            </button>
-            <button
-              className="branch-action-icon delete"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteBranch(branch.name);
-              }}
-              title="Eliminar rama"
-              disabled={deleting === branch.name || isOperating}
-            >
-              🗑️
-            </button>
-          </div>
-        )}
+        <div className="branch-selector-item-actions">
+          <button
+            className="branch-action-icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(branch.name);
+            }}
+            title="Copiar nombre de rama"
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+              <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
+              <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+            </svg>
+          </button>
+          {!isCurrent && !branch.is_remote && (
+            <>
+              <button
+                className="branch-action-icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedBranchForAction(branch.name);
+                  setShowMergeModal(true);
+                  setIsOpen(false);
+                }}
+                title="Fusionar en rama actual"
+                disabled={isOperating}
+              >
+                🔀
+              </button>
+              <button
+                className="branch-action-icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedBranchForAction(branch.name);
+                  setShowRebaseModal(true);
+                  setIsOpen(false);
+                }}
+                title="Rebase sobre rama actual"
+                disabled={isOperating}
+              >
+                🔄
+              </button>
+              <button
+                className="branch-action-icon delete"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteBranch(branch.name);
+                }}
+                title="Eliminar rama"
+                disabled={deleting === branch.name || isOperating}
+              >
+                🗑️
+              </button>
+            </>
+          )}
+        </div>
       </div>
     );
   };
@@ -536,25 +555,23 @@ export function BranchSelector({
               />
             </div>
 
-            <div className="branch-selector-actions" style={{ display: 'flex', gap: '8px', padding: '8px' }}>
+            <div className="branch-selector-actions">
               <button 
                 onClick={() => {
                   setShowCreateForm(true);
                   setIsOpen(false);
                 }}
                 className="branch-selector-action-btn"
-                style={{ flex: 1 }}
                 disabled={isOperating}
               >
-                ✨ Crear rama
+                + Crear rama
               </button>
               <button 
                 onClick={handleFetch}
                 className="branch-selector-action-btn"
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
                 disabled={isOperating}
               >
-                🔄 Fetch remotas
+                🔄 Fetch
               </button>
             </div>
 
@@ -573,18 +590,14 @@ export function BranchSelector({
                     <>
                       {filteredLocal.length > 0 && (
                         <>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '6px 12px 4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            Ramas Locales
-                          </div>
+                          <div className="branch-selector-section">Locales</div>
                           {filteredLocal.map(renderBranchRow)}
                         </>
                       )}
                       
                       {filteredRemote.length > 0 && (
                         <>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '10px 12px 4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', borderTop: '1px solid var(--border-light)' }}>
-                            Ramas Remotas
-                          </div>
+                          <div className="branch-selector-section border-top">Remotas</div>
                           {filteredRemote.map(renderBranchRow)}
                         </>
                       )}
