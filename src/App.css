@@ -1422,14 +1422,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   background: var(--bg-hover);
 }
 
-.branch-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent);
-  border-radius: 50%;
-  display: inline-block;
-}
-
 .branch-selector-current {
   font-weight: 500;
   max-width: 200px;
@@ -1538,10 +1530,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   min-width: 0;
 }
 
+.branch-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
 .branch-selector-item-icon {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .branch-selector-item-main.current .branch-selector-item-icon {
