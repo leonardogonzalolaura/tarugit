@@ -17,6 +17,13 @@ export function PostResolveModal({
   const [countdown, setCountdown] = useState(0);
   const [selectedAction, setSelectedAction] = useState<'continue' | 'abort' | 'done' | null>(null);
 
+  useEffect(() => {
+    if (!onClose) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   // Auto-cerrar después de 5 segundos si no hay operación en curso
   useEffect(() => {
     if (!operationContext && countdown === 0) {

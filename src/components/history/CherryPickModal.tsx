@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BranchInfo } from '../../types';
 import { ExtendedCommitInfo } from './HistoryPanel';
 
@@ -13,6 +13,12 @@ interface CherryPickModalProps {
 export function CherryPickModal({ commits, branches, currentBranch, onPick, onClose }: CherryPickModalProps) {
   const [targetBranch, setTargetBranch] = useState('');
   const [picking, setPicking] = useState(false);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
 
   const otherBranches = branches.filter(b => b.name !== currentBranch);
   const commitCount = commits.length;

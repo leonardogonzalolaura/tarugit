@@ -79,6 +79,12 @@ export function AddRepoModal({ onAdd, onClose }: { onAdd: (path: string) => void
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   const handleBrowseFolder = async () => {
     try {
       const selected = await open({
@@ -168,6 +174,12 @@ export function CloneRepoModal({ onClone, onClose }: { onClone: (url: string, pa
   const urlRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { urlRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
 
   useEffect(() => {
     if (!url) return;

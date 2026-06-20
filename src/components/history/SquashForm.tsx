@@ -11,6 +11,12 @@ interface SquashModalProps {
 export function SquashForm({ commitsToSquash, onSquash, onCancel, isSquashing }: SquashModalProps) {
   const [squashMessage, setSquashMessage] = useState('');
 
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onCancel]);
+
   // Auto-fill default message using the selected commits
   useEffect(() => {
     if (commitsToSquash.length > 0) {

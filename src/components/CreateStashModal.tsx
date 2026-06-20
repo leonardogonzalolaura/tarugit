@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileStatus } from '../types';
 
 interface CreateStashModalProps {
@@ -11,6 +11,12 @@ export function CreateStashModal({ files, onSave, onClose }: CreateStashModalPro
   const [message, setMessage] = useState('');
   const [includeUntracked, setIncludeUntracked] = useState(true);
   const [selectedPaths, setSelectedPaths] = useState<string[]>(files.map(f => f.path));
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
 
   const handleTogglePath = (path: string) => {
     setSelectedPaths(prev =>

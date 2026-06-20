@@ -96,12 +96,16 @@ export function Navbar({
   };
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const clickHandler = (e: MouseEvent) => {
       if (showMenu && !(e.target as Element).closest('.sync-btn-group')) setShowMenu(false);
       if (showRepoDropdown && !(e.target as Element).closest('.navbar-repo-dropdown') && !(e.target as Element).closest('.navbar-repo-btn')) setShowRepoDropdown(false);
     };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShowMenu(false); setShowRepoDropdown(false); }
+    };
+    document.addEventListener('click', clickHandler);
+    document.addEventListener('keydown', keyHandler);
+    return () => { document.removeEventListener('click', clickHandler); document.removeEventListener('keydown', keyHandler); };
   }, [showMenu, showRepoDropdown]);
 
   const syncLabel = syncing ? '' 

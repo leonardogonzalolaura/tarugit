@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 interface UserModalProps {
   newUserName: string;
   newUserEmail: string;
@@ -8,6 +10,11 @@ interface UserModalProps {
 }
 
 export function UserModal({ newUserName, newUserEmail, onNameChange, onEmailChange, onSave, onClose }: UserModalProps) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px' }}>
