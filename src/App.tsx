@@ -24,7 +24,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import './App.css';
 
 function App() {
-  const { sorted: savedRepos, addRepo, removeRepo } = useRepos('');
+  const { sorted: savedRepos, addRepo } = useRepos('');
 
   const {
     repoPath, repoInfo, loading, setLoading,
@@ -177,7 +177,6 @@ function App() {
           repos={savedRepos}
           activeRepoPath={repoPath}
           onSelectRepo={openRepoWithReset}
-          onRemoveRepo={removeRepo}
           onAddRepo={() => setShowAddModal(true)}
           onCloneRepo={() => setShowCloneModal(true)}
         />
