@@ -209,13 +209,12 @@ html, body, #root {
   top: var(--navbar-h);
   left: 0;
   width: 360px;
-  max-height: calc(100vh - var(--navbar-h) - 8px);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 0 0 8px 8px;
   box-shadow: var(--shadow-lg);
   z-index: 100;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .navbar-repo-dropdown-header {
@@ -274,17 +273,22 @@ html, body, #root {
   margin-left: 8px;
 }
 
-.navbar-repo-dropdown-footer {
+.navbar-repo-dropdown-actions {
   display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-top: 1px solid var(--border);
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar-repo-dropdown-list {
+  max-height: calc(100vh - var(--navbar-h) - 100px);
+  overflow-y: auto;
 }
 
 .navbar-repo-action {
   flex: 1;
-  padding: 7px 0;
-  font-size: 12px;
+  padding: 5px 0;
+  font-size: 11px;
   font-weight: 500;
   background: var(--bg-surface);
   border: 1px solid var(--border);
