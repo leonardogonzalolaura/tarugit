@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { BranchInfo } from '../types';
+import { CompareBranchesModal } from './CompareBranchesModal';
 
 interface BranchSelectorProps {
   repoPath: string;
@@ -135,6 +136,7 @@ export function BranchSelector({
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showRebaseModal, setShowRebaseModal] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
   const [selectedBranchForAction, setSelectedBranchForAction] = useState<string | null>(null);
   const [displayBranch, setDisplayBranch] = useState(currentBranch);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -517,6 +519,15 @@ export function BranchSelector({
       {renderMergeModal()}
       {renderRebaseModal()}
       
+      {showCompareModal && (
+        <CompareBranchesModal
+          repoPath={repoPath}
+          branches={branches}
+          currentBranch={currentBranch}
+          onClose={() => setShowCompareModal(false)}
+        />
+      )}
+
       {showCreateForm && (
         <CreateBranchModal
           branches={branches}
@@ -576,6 +587,16 @@ export function BranchSelector({
                 disabled={isOperating}
               >
                 🔄 Fetch
+              </button>
+              <button 
+                onClick={() => {
+                  setShowCompareModal(true);
+                  setIsOpen(false);
+                }}
+                className="branch-selector-action-btn"
+                disabled={isOperating}
+              >
+                📊 Comparar
               </button>
             </div>
 

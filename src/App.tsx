@@ -8,6 +8,8 @@ import { DiffViewer } from './components/DiffViewer';
 import { CommitPanel } from './components/CommitPanel';
 import { HistoryPanel, ExtendedCommitInfo } from './components/history/HistoryPanel';
 import { FileDiffViewer } from './components/history/FileDiffViewer';
+import { FileHistoryModal } from './components/history/FileHistoryModal';
+import { BranchGraph } from './components/graph/BranchGraph';
 import { formatDate } from './components/history/utils';
 import { ConflictResolver } from './components/ConflictResolver/index';
 import { OperationStatusBar } from './components/OperationStatusBar';
@@ -47,7 +49,7 @@ function App() {
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState('');
-  const [leftTab, setLeftTab] = useState<'changes' | 'history' | 'stash' | 'tags'>('changes');
+  const [leftTab, setLeftTab] = useState<'changes' | 'history' | 'stash' | 'tags' | 'graph'>('changes');
   const [activePanel, setActivePanel] = useState<'diff' | 'branches'>('diff');
   const [selectedCommitInfo, setSelectedCommitInfo] = useState<ExtendedCommitInfo | null>(null);
   const [commitFileDiffs, setCommitFileDiffs] = useState<{ path: string; diff: string; additions: number; deletions: number }[]>([]);
@@ -56,6 +58,7 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -166,6 +169,10 @@ function App() {
     await handleSaveStash(repoPath, message, includeUntracked, filesToStash, refreshAll);
   }, [repoPath, handleSaveStash, refreshAll]);
 
+  const handleFileHistory = useCallback((path: string) => {
+    setFileHistoryPath(path);
+  }, []);
+
   const openRepoWithReset = useCallback(async (path: string) => {
     await openRepo(path);
     setSelectedFile(null);
@@ -200,6 +207,8 @@ function App() {
           onSelectRepo={openRepoWithReset}
           onAddRepo={() => setShowAddModal(true)}
           onCloneRepo={() => setShowCloneModal(true)}
+          showGraph={leftTab === 'graph'}
+          onShowGraph={() => setLeftTab(t => t === 'graph' ? 'changes' : 'graph')}
         />
 
         {showAddModal && (
@@ -302,6 +311,7 @@ function App() {
                         loading={loading}
                         onSelectFile={viewDiff}
                         onDiscardFile={discardChanges}
+                        onFileHistory={handleFileHistory}
                         repoPath={repoPath}
                         onRefresh={refreshStatus}
                       />
@@ -349,6 +359,7 @@ function App() {
                   <TagPanel repoPath={repoPath} />
                 </div>
               )}
+
               </>
             )}
           </div>
@@ -398,6 +409,10 @@ function App() {
                 onFileSaved={handleFileSaved}
               />
             )}
+
+            {leftTab === 'graph' && (
+              <BranchGraph repoPath={repoPath} />
+            )}
           </div>
         </div>
 
@@ -414,6 +429,14 @@ function App() {
               }}
             />
           </div>
+        )}
+
+        {fileHistoryPath && repoPath && (
+          <FileHistoryModal
+            repoPath={repoPath}
+            filePath={fileHistoryPath}
+            onClose={() => setFileHistoryPath(null)}
+          />
         )}
 
         {confirmAction && (

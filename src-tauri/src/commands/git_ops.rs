@@ -537,7 +537,7 @@ pub fn get_commit_diff_structured(repo_path: String, commit_id: String) -> Resul
             // Handle quotes for files with spaces
             if path_part.starts_with('"') {
                 if let Some(end_quote) = path_part[1..].find('"') {
-                    let a_path = &path_part[1..=end_quote];
+                    let _a_path = &path_part[1..=end_quote];
                     // The b_path will start after `a_path" "b/`
                     let b_path_marker = format!("\" \"b/");
                     if let Some(b_idx) = path_part.find(&b_path_marker) {
@@ -1044,6 +1044,53 @@ pub fn fetch_remote_branches(repo_path: String) -> Result<String, String> {
     }
 }
 
+// ─── File History ────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Debug)]
+pub struct FileHistoryEntry {
+    pub commit_id: String,
+    pub message: String,
+    pub author: String,
+    pub timestamp: i64,
+}
+
+#[command]
+pub async fn get_file_history(repo_path: String, file_path: String) -> Result<Vec<FileHistoryEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Obteniendo historial del archivo: {}", file_path);
+        let output = create_git_command()
+            .args(["log", "--follow", "--format=%H|%s|%an|%ct", "--", &file_path])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git log: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Error al obtener historial del archivo: {}", stderr));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut history = Vec::new();
+        for line in stdout.lines() {
+            let parts: Vec<&str> = line.splitn(4, '|').collect();
+            if parts.len() == 4 {
+                if let Ok(timestamp) = parts[3].trim().parse::<i64>() {
+                    history.push(FileHistoryEntry {
+                        commit_id: parts[0].to_string(),
+                        message: parts[1].to_string(),
+                        author: parts[2].to_string(),
+                        timestamp,
+                    });
+                }
+            }
+        }
+        log::info!("Se encontraron {} commits para el archivo {}", history.len(), file_path);
+        Ok(history)
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
 // ─── Stash Operations ──────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize, Debug)]
@@ -1281,6 +1328,88 @@ pub async fn pull_branch(repo_path: String, branch_name: String) -> Result<Strin
         } else {
             Err(format!("Error en git pull:\n{}\n{}", stdout, stderr))
         }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+// ─── Compare Branches ───────────────────────────────────────
+
+#[derive(serde::Serialize, Debug)]
+pub struct BranchComparison {
+    pub base_branch: String,
+    pub target_branch: String,
+    pub ahead: i32,
+    pub behind: i32,
+    pub base_commits: Vec<CommitInfoWithTimestamp>,
+    pub target_commits: Vec<CommitInfoWithTimestamp>,
+}
+
+#[command]
+pub async fn compare_branches(repo_path: String, base_branch: String, target_branch: String) -> Result<BranchComparison, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Comparando {}...{}", base_branch, target_branch);
+
+        let ahead_behind = create_git_command()
+            .args(["rev-list", "--count", "--left-right", &format!("{}...{}", base_branch, target_branch)])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando rev-list: {}", e))?;
+
+        let (ahead, behind) = if ahead_behind.status.success() {
+            let out = String::from_utf8_lossy(&ahead_behind.stdout);
+            let parts: Vec<&str> = out.trim().split('\t').collect();
+            if parts.len() >= 2 {
+                (parts[0].parse::<i32>().unwrap_or(0), parts[1].parse::<i32>().unwrap_or(0))
+            } else {
+                (0, 0)
+            }
+        } else {
+            (0, 0)
+        };
+
+        let get_commits = |range: &str| -> Result<Vec<CommitInfoWithTimestamp>, String> {
+            let output = create_git_command()
+                .args(["log", "--format=%H|%s|%an|%ct", range])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Error ejecutando git log: {}", e))?;
+
+            if !output.status.success() {
+                return Ok(Vec::new());
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut commits = Vec::new();
+            for line in stdout.lines() {
+                let parts: Vec<&str> = line.splitn(4, '|').collect();
+                if parts.len() == 4 {
+                    if let Ok(ts) = parts[3].trim().parse::<i64>() {
+                        commits.push(CommitInfoWithTimestamp {
+                            id: parts[0].to_string(),
+                            message: parts[1].to_string(),
+                            author: parts[2].to_string(),
+                            timestamp: ts,
+                        });
+                    }
+                }
+            }
+            Ok(commits)
+        };
+
+        let base_commits = get_commits(&format!("{}..{}", target_branch, base_branch))?;
+        let target_commits = get_commits(&format!("{}..{}", base_branch, target_branch))?;
+
+        log::info!("Comparación: base={} ahead={}, target={} behind={}", base_branch, ahead, target_branch, behind);
+
+        Ok(BranchComparison {
+            base_branch,
+            target_branch,
+            ahead,
+            behind,
+            base_commits,
+            target_commits,
+        })
     })
     .await
     .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?

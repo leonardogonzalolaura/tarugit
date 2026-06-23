@@ -55,6 +55,7 @@ pub fn run() {
             commands::git_ops::get_commit_history_with_timestamp,
             commands::git_ops::fetch_remote_branches,
             commands::git_ops::push_branch,
+            commands::git_ops::get_file_history,
             commands::git_ops::get_stash_list,
             commands::git_ops::save_stash,
             commands::git_ops::apply_stash,
@@ -63,6 +64,7 @@ pub fn run() {
             commands::git_ops::git_status_remote,
             commands::git_ops::pull_branch,
             commands::git_ops::list_tags,
+            commands::git_ops::compare_branches,
             commands::git_ops::create_tag,
             commands::git_ops::delete_tag,
             // Watcher commands
@@ -71,6 +73,7 @@ pub fn run() {
             // new functions files
             commands::file_ops::read_file_content,
             commands::file_ops::write_file_content,
+            commands::graph_ops::get_commit_graph,
             commands::file_ops::read_file_from_commit,
             commands::file_ops::get_file_info,
         ])

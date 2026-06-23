@@ -9,6 +9,7 @@ interface FileListProps {
   loading: boolean;
   onSelectFile: (path: string) => void;
   onDiscardFile: (path: string) => void;
+  onFileHistory?: (path: string) => void;
   repoPath?: string;
   onRefresh?: () => void;
 }
@@ -21,7 +22,7 @@ const STATUS_META: Record<string, { icon: string; label: string; cls: string }> 
   unknown:   { icon: '📄',  label: '?', cls: 'status-unknown'   },
 };
 
-export function FileList({ files, selectedFile, loading, onSelectFile, onDiscardFile, repoPath, onRefresh }: FileListProps) {
+export function FileList({ files, selectedFile, loading, onSelectFile, onDiscardFile, onFileHistory, repoPath, onRefresh }: FileListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState(false);
@@ -83,11 +84,20 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
     }
   };
 
+  const handleOpenGitignore = () => {
+    onSelectFile('.gitignore');
+  };
+
   if (files.length === 0) {
     return (
       <div className="file-list-empty">
         <span style={{ fontSize: 36 }}>✨</span>
         <p>Sin cambios pendientes</p>
+        {repoPath && (
+          <button className="btn-gitignore" onClick={handleOpenGitignore} style={{ marginTop: 12 }}>
+            ⚙️ Editar .gitignore
+          </button>
+        )}
       </div>
     );
   }
@@ -137,6 +147,11 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
         <button className="btn-discard"
           onClick={(e) => { e.stopPropagation(); onDiscardFile(file.path); }}
           disabled={loading} title="Descartar cambios">🗑</button>
+        {onFileHistory && (
+          <button className="btn-icon" style={{ width: 22, height: 22, fontSize: 11 }}
+            onClick={(e) => { e.stopPropagation(); onFileHistory(file.path); }}
+            title="Historial del archivo">🕓</button>
+        )}
       </div>
     );
   };
@@ -177,6 +192,14 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
         <div className="file-list-empty" style={{ padding: '16px' }}>
           <span>🔍</span>
           <p>No se encontraron archivos para "{searchQuery}"</p>
+        </div>
+      )}
+
+      {repoPath && (
+        <div style={{ padding: '0 8px' }}>
+          <button className="btn-gitignore" onClick={handleOpenGitignore} style={{ width: '100%' }}>
+            ⚙️ Editar .gitignore
+          </button>
         </div>
       )}
 

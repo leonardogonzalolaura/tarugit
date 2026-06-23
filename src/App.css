@@ -160,6 +160,23 @@ html, body, #root {
   flex-shrink: 0;
 }
 
+.navbar-graph-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  transition: all .12s;
+}
+.navbar-graph-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
+.navbar-graph-btn.active { background: var(--bg-selected); color: var(--accent); }
+
 .navbar-sep {
   width: 1px;
   background: var(--border);
@@ -716,6 +733,24 @@ html, body, #root {
   font-size: 12px;
 }
 .btn-close:hover { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+
+.btn-gitignore {
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 5px 10px;
+  text-align: center;
+  transition: all .12s;
+  font-family: var(--font-sans);
+}
+.btn-gitignore:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
 
 button:disabled { opacity: .4; cursor: not-allowed; }
 

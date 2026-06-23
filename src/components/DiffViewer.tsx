@@ -88,6 +88,41 @@ export function DiffViewer({ selectedFile, diffContent, loading, onClose, repoPa
   const language = selectedFile ? getLanguageForDisplay(selectedFile) : 'text';
   const monacoLanguage = selectedFile ? getMonacoLanguage(selectedFile) : 'plaintext';
 
+  const GITIGNORE_TEMPLATE = `# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+target/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+`;
+
+  const DEFAULT_TEMPLATES: Record<string, string> = {
+    '.gitignore': GITIGNORE_TEMPLATE,
+  };
+
   const loadCurrentFileContent = async () => {
     if (!selectedFile || !repoPath) return;
     
@@ -100,8 +135,16 @@ export function DiffViewer({ selectedFile, diffContent, loading, onClose, repoPa
       setFileContent(content);
       setError(null);
     } catch (err) {
-      console.error('Error al cargar archivo:', err);
-      setError('No se pudo cargar el contenido del archivo');
+      // If file doesn't exist, provide a default template for known files
+      const template = DEFAULT_TEMPLATES[selectedFile];
+      if (template) {
+        setOriginalContent(template);
+        setFileContent(template);
+        setError(null);
+      } else {
+        console.error('Error al cargar archivo:', err);
+        setError('No se pudo cargar el contenido del archivo');
+      }
     }
   };
 

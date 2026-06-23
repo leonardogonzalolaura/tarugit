@@ -11,6 +11,8 @@ interface NavbarProps {
   onSelectRepo: (path: string) => void;
   onAddRepo: () => void;
   onCloneRepo: () => void;
+  onShowGraph?: () => void;
+  showGraph: boolean;
   hasUncommittedChanges?: boolean;
   onBranchSwitch?: () => void;
   onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
@@ -25,6 +27,8 @@ export function Navbar({
   onSelectRepo, 
   onAddRepo, 
   onCloneRepo,
+  onShowGraph,
+  showGraph,
   hasUncommittedChanges = false,
   onBranchSwitch = () => {},
   onConflictOperation
@@ -215,7 +219,17 @@ export function Navbar({
           )}
         </div>
 
-        <div className="navbar-right"></div>
+        <div className="navbar-right">
+          {repoInfo && (
+            <button
+              className={`navbar-graph-btn${showGraph ? ' active' : ''}`}
+              onClick={onShowGraph}
+              title={showGraph ? 'Cerrar grafo' : 'Ver grafo de commits'}
+            >
+              🌳 <span style={{ fontSize: 11 }}>Grafo</span>
+            </button>
+          )}
+        </div>
       </div>
     </>
   );
