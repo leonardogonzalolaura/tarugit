@@ -14,18 +14,19 @@ interface FileListProps {
   onRefresh?: () => void;
 }
 
-const STATUS_META: Record<string, { icon: string; label: string; cls: string }> = {
-  modified:  { icon: '✏️',  label: 'M', cls: 'status-modified'  },
-  untracked: { icon: '❓',  label: 'U', cls: 'status-untracked' },
-  deleted:   { icon: '🗑️', label: 'D', cls: 'status-deleted'   },
-  conflicted: { icon: '⚠️', label: 'C', cls: 'status-conflicted' },
-  unknown:   { icon: '📄',  label: '?', cls: 'status-unknown'   },
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  modified:   { label: 'M', cls: 'st-modified'  },
+  untracked:  { label: 'U', cls: 'st-untracked' },
+  deleted:    { label: 'D', cls: 'st-deleted'   },
+  conflicted: { label: 'C', cls: 'st-conflicted' },
+  unknown:    { label: '?', cls: 'st-unknown'   },
 };
 
 export function FileList({ files, selectedFile, loading, onSelectFile, onDiscardFile, onFileHistory, repoPath, onRefresh }: FileListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
@@ -88,14 +89,17 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
     onSelectFile('.gitignore');
   };
 
+  const hasSelection = selectedFiles.size > 0;
+  const allSelected = selectedFiles.size === filteredFiles.length && filteredFiles.length > 0;
+
   if (files.length === 0) {
     return (
       <div className="file-list-empty">
-        <span style={{ fontSize: 36 }}>✨</span>
-        <p>Sin cambios pendientes</p>
+        <span style={{ fontSize: 28, opacity: 0.4 }}>📝</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sin cambios pendientes</span>
         {repoPath && (
-          <button className="btn-gitignore" onClick={handleOpenGitignore} style={{ marginTop: 12 }}>
-            ⚙️ Editar .gitignore
+          <button className="gitignore-btn" onClick={handleOpenGitignore}>
+            + .gitignore
           </button>
         )}
       </div>
@@ -109,128 +113,143 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
     const meta = STATUS_META[file.status] ?? STATUS_META.unknown;
     const isSelected = selectedFile === file.path;
     const isChecked = selectedFiles.has(file.path);
+    const isConflicted = file.status === 'conflicted';
 
     const parts = file.path.replace(/\\/g, '/').split('/');
     const filename = parts.pop() ?? file.path;
     const dir = parts.join('/');
 
     const matchQuery = searchQuery.trim().toLowerCase();
-    const highlightMatch = (text: string) => {
+    const highlight = (text: string) => {
       if (!matchQuery) return text;
       const idx = text.toLowerCase().indexOf(matchQuery);
       if (idx === -1) return text;
       return (
         <>
           {text.slice(0, idx)}
-          <span style={{ background: 'var(--accent-dim)', color: 'var(--accent)', borderRadius: 2, padding: '0 2px' }}>{text.slice(idx, idx + matchQuery.length)}</span>
+          <span className="search-highlight">{text.slice(idx, idx + matchQuery.length)}</span>
           {text.slice(idx + matchQuery.length)}
         </>
       );
     };
 
     return (
-      <div key={file.path}
-        className={`file-item ${isSelected ? 'selected' : ''}`}
+      <div
+        key={file.path}
+        className={`f-row${isSelected ? ' selected' : ''}${isConflicted ? ' conflicted' : ''}`}
         onClick={() => onSelectFile(file.path)}
-        style={file.status === 'conflicted' ? { borderLeft: '3px solid var(--red)' } : {}}
       >
-        <input type="checkbox" checked={isChecked}
-          onChange={(e) => { e.stopPropagation(); toggleSelect(file.path); }}
-          onClick={(e) => e.stopPropagation()}
-          style={{ accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
-        />
-        <span className={`file-status-badge ${meta.cls}`}>{meta.label}</span>
-        <div className="file-names">
-          {dir && <span className="file-dir">{highlightMatch(dir)}/</span>}
-          <span className="file-name">{highlightMatch(filename)}</span>
-        </div>
-        <button className="btn-discard"
-          onClick={(e) => { e.stopPropagation(); onDiscardFile(file.path); }}
-          disabled={loading} title="Descartar cambios">🗑</button>
-        {onFileHistory && (
-          <button className="btn-icon" style={{ width: 22, height: 22, fontSize: 11 }}
-            onClick={(e) => { e.stopPropagation(); onFileHistory(file.path); }}
-            title="Historial del archivo">🕓</button>
-        )}
+        <label className="f-cb" onClick={e => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={() => toggleSelect(file.path)}
+          />
+        </label>
+        <span className={`f-badge ${meta.cls}`} title={file.status}>{meta.label}</span>
+        <span className="f-path" title={file.path}>
+          {dir ? <span className="f-dir">{highlight(dir)}/</span> : null}
+          <span className="f-name">{highlight(filename)}</span>
+        </span>
+        <span className="f-actions">
+          {onFileHistory && (
+            <button className="f-act f-act-history" onClick={e => { e.stopPropagation(); onFileHistory(file.path); }} title="Historial">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M7.5 4.5v4.5l3 1.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+          <button className="f-act f-act-del" onClick={e => { e.stopPropagation(); onDiscardFile(file.path); }} disabled={loading} title="Descartar">✕</button>
+        </span>
       </div>
     );
   };
 
   return (
-    <div className="file-list-sections" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {files.length > 5 && (
-        <div style={{ padding: '0 8px' }}>
-          <input type="text" placeholder="Buscar archivos..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input" style={{ fontSize: 11, padding: '6px 10px' }} />
-        </div>
-      )}
-
-      {repoPath && filteredFiles.length > 0 && (
-        <div style={{ display: 'flex', gap: '4px', padding: '6px 8px 0', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 10, color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={selectedFiles.size === filteredFiles.length && filteredFiles.length > 0}
-              onChange={selectAll} style={{ accentColor: 'var(--accent)' }} />
-            {selectedFiles.size > 0 ? `${selectedFiles.size} seleccionado(s)` : 'Seleccionar todo'}
-          </label>
-          {selectedFiles.size > 0 && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
-              <button className="btn-primary" onClick={handleStageSelected}
-                disabled={actionLoading} style={{ fontSize: 10, padding: '3px 8px' }}>
-                + Stage
-              </button>
-              <button className="btn-secondary" onClick={handleUnstageSelected}
-                disabled={actionLoading} style={{ fontSize: 10, padding: '3px 8px' }}>
-                - Unstage
-              </button>
-            </div>
+    <div className="fl">
+      {/* Header */}
+      <div className="fl-header">
+        <div className="fl-title">
+          <span className="fl-count">{files.length}</span>
+          {hasSelection && (
+            <span className="fl-sel">{selectedFiles.size} sel.</span>
           )}
         </div>
-      )}
-
-      {filteredFiles.length === 0 && searchQuery.trim() && (
-        <div className="file-list-empty" style={{ padding: '16px' }}>
-          <span>🔍</span>
-          <p>No se encontraron archivos para "{searchQuery}"</p>
-        </div>
-      )}
-
-      {repoPath && (
-        <div style={{ padding: '0 8px' }}>
-          <button className="btn-gitignore" onClick={handleOpenGitignore} style={{ width: '100%' }}>
-            ⚙️ Editar .gitignore
+        <div className="fl-header-actions">
+          {files.length > 0 && (
+            <button className={`fl-btn ${showSearch ? 'active' : ''}`} onClick={() => setShowSearch(v => !v)} title="Buscar">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                <path d="M6.5 1a5.5 5.5 0 1 0 3.38 9.82l2.65 2.65a.75.75 0 1 0 1.06-1.06l-2.65-2.65A5.5 5.5 0 0 0 6.5 1Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
+              </svg>
+            </button>
+          )}
+          <button className="fl-btn" onClick={handleOpenGitignore} title="Editar .gitignore">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+              <path d="M2 1.75C2 .784 2.784 0 3.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 12.25 16h-8.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25V5.164a.25.25 0 0 0-.073-.177L9.513 2.323a.25.25 0 0 0-.177-.073H10v2.5A1.75 1.75 0 0 0 11.75 6.5H13v7.75a.25.25 0 0 1-.25.25h-8.5a.25.25 0 0 1-.25-.25V1.75Z"/>
+            </svg>
           </button>
         </div>
+      </div>
+
+      {/* Search bar */}
+      {showSearch && (
+        <div className="fl-search">
+          <input
+            type="text"
+            placeholder="Filtrar archivos..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            autoFocus
+          />
+          {searchQuery && <button className="fl-search-clear" onClick={() => { setSearchQuery(''); setShowSearch(false); }}>✕</button>}
+        </div>
       )}
 
-      {conflicted.length > 0 && (
-        <div className="conflicted-files-section" style={{
-          background: 'rgba(248, 113, 113, 0.05)',
-          border: '1px solid rgba(248, 113, 113, 0.15)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '8px 4px 10px'
-        }}>
-          <div style={{ color: 'var(--red)', fontSize: '11px', fontWeight: 'bold',
-            letterSpacing: '0.5px', padding: '2px 8px 8px',
-            display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>⚠️</span> ARCHIVOS CON CONFLICTO ({conflicted.length})
-          </div>
-          <div className="file-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {conflicted.map(renderFileRow)}
+      {/* Selection toolbar */}
+      {hasSelection && (
+        <div className="fl-toolbar">
+          <label className="fl-cb-all">
+            <input type="checkbox" checked={allSelected} onChange={selectAll} />
+            <span>{allSelected ? 'Todo' : `${selectedFiles.size} archivo(s)`}</span>
+          </label>
+          <div className="fl-toolbar-actions">
+            <button className="fl-tb-btn stage" onClick={handleStageSelected} disabled={actionLoading}>
+              {actionLoading ? <span className="spinner-sm" /> : null}+ Stage
+            </button>
+            <button className="fl-tb-btn unstage" onClick={handleUnstageSelected} disabled={actionLoading}>
+              - Unstage
+            </button>
           </div>
         </div>
       )}
 
+      {/* No search results */}
+      {filteredFiles.length === 0 && searchQuery.trim() && (
+        <div className="fl-empty">Sin resultados para "{searchQuery}"</div>
+      )}
+
+      {/* Conflicted files */}
+      {conflicted.length > 0 && (
+        <div className="fl-section">
+          <div className="fl-section-header conflicted">
+            <span>⚠ Conflictos</span>
+            <span className="fl-section-count">{conflicted.length}</span>
+          </div>
+          {conflicted.map(f => renderFileRow(f))}
+        </div>
+      )}
+
+      {/* Normal files */}
       {normal.length > 0 && (
-        <div className="normal-files-section">
+        <div className="fl-section">
           {conflicted.length > 0 && (
-            <div style={{ color: 'var(--text-secondary)', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.5px', padding: '2px 8px 8px' }}>
-              📁 OTROS CAMBIOS ({normal.length})
+            <div className="fl-section-header">
+              <span>Cambios</span>
+              <span className="fl-section-count">{normal.length}</span>
             </div>
           )}
-          <div className="file-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {normal.map(renderFileRow)}
-          </div>
+          {normal.map(f => renderFileRow(f))}
         </div>
       )}
     </div>

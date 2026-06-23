@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface FileDiff {
   path: string;
@@ -12,92 +12,82 @@ interface FileDiffViewerProps {
   loading: boolean;
 }
 
-function renderDiffLines(diff: string) {
-  if (!diff) return <div className="diff-empty">Sin cambios</div>;
-
-  const lines = diff.split('\n');
-  return (
-    <div className="diff-lines">
-      {lines.map((line, i) => {
-        const first = line[0];
-        let cls = 'diff-line-ctx';
-        if (first === '+') cls = 'diff-line-add';
-        else if (first === '-') cls = 'diff-line-del';
-        else if (first === '@') cls = 'diff-line-hunk';
-        
-        return (
-          <div key={i} className={`diff-line ${cls}`}>
-            <span className="diff-line-num">{i + 1}</span>
-            <span className="diff-line-marker">{first === '+' || first === '-' ? first : ' '}</span>
-            <span className="diff-line-text">{line.slice(1)}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function FileDiffItem({ file }: { file: FileDiff }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const totalChanges = file.additions + file.deletions;
+  const [expanded, setExpanded] = useState(false);
+
+  const parts = file.path.replace(/\\/g, '/').split('/');
+  const filename = parts.pop() ?? file.path;
+  const dir = parts.join('/');
 
   return (
-    <div style={{ marginBottom: '12px', borderBottom: '1px solid var(--border)' }}>
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 12px',
-          cursor: 'pointer',
-          background: 'var(--bg-surface)',
-          borderRadius: 'var(--radius-sm)',
-          transition: 'all 0.12s',
-          border: '1px solid var(--border)'
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface)'; }}
-      >
-        <span style={{ fontSize: '12px', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', flex: 1, wordBreak: 'break-all' }}>
-          {file.path}
+    <div className="fd-item">
+      <div className={`fd-head${expanded ? ' expanded' : ''}`} onClick={() => setExpanded(v => !v)}>
+        <span className="fd-chevron">{expanded ? '▼' : '▶'}</span>
+        <span className="fd-path" title={file.path}>
+          {dir && <span className="fd-dir">{dir}/</span>}
+          <span className="fd-name">{filename}</span>
         </span>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {file.additions > 0 && (
-            <span className="diff-stat-add" style={{ fontSize: '11px' }}>+{file.additions}</span>
-          )}
-          {file.deletions > 0 && (
-            <span className="diff-stat-del" style={{ fontSize: '11px' }}>-{file.deletions}</span>
-          )}
-          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-            {totalChanges} línea{totalChanges !== 1 ? 's' : ''}
-          </span>
-        </div>
+        <span className="fd-stats">
+          {file.additions > 0 && <span className="fd-add">+{file.additions}</span>}
+          {file.deletions > 0 && <span className="fd-del">-{file.deletions}</span>}
+        </span>
       </div>
-      
-      {isExpanded && (
-        <div style={{
-          padding: '12px',
-          background: 'var(--bg-base)',
-          borderRadius: 'var(--radius-sm)',
-          marginTop: '4px',
-          marginBottom: '8px',
-          border: '1px solid var(--border-light)',
-          maxHeight: '400px',
-          overflow: 'auto'
-        }}>
-          {renderDiffLines(file.diff)}
+
+      {expanded && (
+        <div className="fd-body">
+          <DiffLines diff={file.diff} />
         </div>
       )}
     </div>
   );
 }
 
+function DiffLines({ diff }: { diff: string }) {
+  if (!diff) return <div className="fd-empty">Sin cambios</div>;
+
+  const lines = useMemo(() => diff.split('\n'), [diff]);
+
+  // Compute line numbers for +/- markers
+  let lineNum = 0;
+  const lineData = lines.filter(line => {
+    // Skip git diff header lines
+    if (line.startsWith('diff --git ') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+      return false;
+    }
+    return true;
+  }).map(line => {
+    const first = line[0];
+    if (first === '@') {
+      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (match) lineNum = parseInt(match[1], 10) - 1;
+      return { content: line, type: 'hunk' as const, num: '' };
+    }
+    if (first === '+') { lineNum++; return { content: line, type: 'add' as const, num: lineNum }; }
+    if (first === '-') return { content: line, type: 'del' as const, num: '' };
+    lineNum++;
+    return { content: line, type: 'ctx' as const, num: lineNum };
+  });
+
+  return (
+    <div className="fd-lines">
+      {lineData.map((ld, i) => (
+        <div key={i} className={`fd-line fd-line-${ld.type}`}>
+          <span className="fd-ln">{ld.num}</span>
+          <span className="fd-ln-marker">{ld.content[0] === '+' || ld.content[0] === '-' ? ld.content[0] : ' '}</span>
+          <span className="fd-ln-text">{ld.content.slice(1)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FileDiffViewer({ fileDiffs, loading }: FileDiffViewerProps) {
+  const totalAdds = useMemo(() => fileDiffs.reduce((s, f) => s + f.additions, 0), [fileDiffs]);
+  const totalDels = useMemo(() => fileDiffs.reduce((s, f) => s + f.deletions, 0), [fileDiffs]);
+
   if (loading) {
     return (
-      <div className="diff-loading">
+      <div className="panel-loading" style={{ height: '100%' }}>
         <span className="spinner" /> Cargando diff...
       </div>
     );
@@ -105,18 +95,28 @@ export function FileDiffViewer({ fileDiffs, loading }: FileDiffViewerProps) {
 
   if (fileDiffs.length === 0) {
     return (
-      <div className="diff-empty">
-        <span>📄</span>
-        <p>No hay cambios en este commit</p>
+      <div className="panel-empty" style={{ height: '100%' }}>
+        No hay cambios en este commit
       </div>
     );
   }
 
   return (
-    <div style={{ height: '100%', overflow: 'auto' }}>
-      {fileDiffs.map(file => (
-        <FileDiffItem key={file.path} file={file} />
-      ))}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Summary bar */}
+      <div className="fd-summary">
+        <span className="fd-sum-count">{fileDiffs.length} archivo{fileDiffs.length !== 1 ? 's' : ''}</span>
+        <span className="fd-sum-divider" />
+        <span className="fd-sum-adds">+{totalAdds}</span>
+        <span className="fd-sum-dels">-{totalDels}</span>
+      </div>
+
+      {/* File list */}
+      <div className="fd-list">
+        {fileDiffs.map(file => (
+          <FileDiffItem key={file.path} file={file} />
+        ))}
+      </div>
     </div>
   );
 }

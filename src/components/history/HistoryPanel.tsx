@@ -39,6 +39,7 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
   const [fileDiffs, setFileDiffs] = useState<FileDiff[]>([]);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
+  const [showSearch, setShowSearch] = useState(false);
   const [selectedCommits, setSelectedCommits] = useState<Set<string>>(new Set());
   const [showCherryModal, setShowCherryModal] = useState(false);
   const [showSquashForm, setShowSquashForm] = useState(false);
@@ -236,43 +237,72 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         className="history-list-col"
         style={compactMode ? { width: '100%', flex: 1 } : { width: `${listWidth}%`, minWidth: 0, flex: 'none' }}
       >
-        <div className="panel-header" style={{ padding: '8px 12px 6px' }}>
-          <div className="panel-header-right" style={{ display: 'flex', gap: '6px' }}>
-            {selectedCount > 0 && (
-              <button
-                className="btn-primary"
-                style={{ padding: '3px 8px', fontSize: '10px' }}
-                onClick={() => setShowCherryModal(true)}
-                disabled={isApplyingCherryPick}
-              >
-                {isApplyingCherryPick ? <span className="spinner-sm" /> : '🍒'} Cherry-Pick ({selectedCount})
-              </button>
-            )}
-            {commits.length >= 2 && (
-              <button
-                className={`btn-secondary ${showSquashForm ? 'active' : ''}`}
-                style={{ 
-                  padding: '3px 6px', 
-                  fontSize: '10px', 
-                  color: selectedCount >= 2 ? 'var(--yellow)' : 'var(--text-muted)', 
-                  borderColor: selectedCount >= 2 ? 'rgba(251,191,36,0.2)' : 'transparent',
-                  cursor: selectedCount >= 2 ? 'pointer' : 'not-allowed'
-                }}
-                onClick={() => {
-                  if (selectedCount >= 2) {
-                    setShowSquashForm(!showSquashForm);
-                  } else {
-                    alert('Por favor selecciona con el checkbox al menos 2 commits para hacer squash.');
-                  }
-                }}
-              >
-                💥 Squash {selectedCount >= 2 ? `(${selectedCount})` : ''}
-              </button>
-            )}
-            <span className="panel-badge">{commits.length}</span>
-            <button className="btn-icon" onClick={loadHistory} title="Recargar">↻</button>
+        <div className="hp-header">
+          <div className="hp-header-left">
+            <span className="hp-title">Historial</span>
+            <span className="hp-count">{commits.length}</span>
+          </div>
+          <div className="hp-header-actions">
+            <button className={`hp-btn ${showSearch ? 'active' : ''}`} onClick={() => setShowSearch(v => !v)} title="Buscar">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                <path d="M6.5 1a5.5 5.5 0 1 0 3.38 9.82l2.65 2.65a.75.75 0 1 0 1.06-1.06l-2.65-2.65A5.5 5.5 0 0 0 6.5 1Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
+              </svg>
+            </button>
+            <button className="hp-btn" onClick={loadHistory} title="Recargar">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                <path d="M8 1.5a6.5 6.5 0 1 0 6.016 4.035.75.75 0 0 0-1.382-.586A5 5 0 1 1 8 3a5 5 0 0 1 3.5 1.5l-1.5 1.5h4.25V1.5l-1.28 1.28A6.5 6.5 0 0 0 8 1.5Z"/>
+              </svg>
+            </button>
           </div>
         </div>
+
+        {showSearch && (
+          <div className="hp-search">
+            <input
+              placeholder="Buscar commit, autor o hash..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <button className="hp-search-clear" onClick={() => setSearch('')}>✕</button>
+            )}
+          </div>
+        )}
+
+        {selectedCount > 0 && (
+          <div className="hp-toolbar">
+            <button
+              className="hp-tb-btn cherry"
+              onClick={() => setShowCherryModal(true)}
+              disabled={isApplyingCherryPick}
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M4 5 L8 1 L12 5 M8 1 L8 9" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Cherry-Pick ({selectedCount})
+            </button>
+            <button
+              className="hp-tb-btn squash"
+              onClick={() => {
+                if (selectedCount >= 2) {
+                  setShowSquashForm(!showSquashForm);
+                } else {
+                  alert('Selecciona al menos 2 commits para hacer squash.');
+                }
+              }}
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M4 4 L8 1 L12 4 M8 1 L8 9" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                <rect x="3" y="10" width="10" height="3" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+              </svg>
+              Squash {selectedCount >= 2 ? `(${selectedCount})` : ''}
+            </button>
+            <button className="hp-tb-btn clear" onClick={() => setSelectedCommits(new Set())}>
+              Limpiar
+            </button>
+          </div>
+        )}
 
         {showSquashForm && (() => {
           let maxIdx = -1;
@@ -290,23 +320,6 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
             />
           );
         })()}
-
-        <div style={{ padding: '0 10px 6px' }}>
-          <input
-            className="search-input"
-            placeholder="Buscar commit, autor o hash..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-          {selectedCount > 0 && (
-            <div style={{ marginTop: '6px', fontSize: '10px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span>✓ {selectedCount} seleccionado(s)</span>
-              <button className="btn-close" style={{ padding: '1px 5px', fontSize: '9px' }} onClick={() => setSelectedCommits(new Set())}>
-                Limpiar
-              </button>
-            </div>
-          )}
-        </div>
 
         {loading ? (
           <div className="panel-loading"><span className="spinner" /> Cargando...</div>
@@ -331,41 +344,37 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         )}
       </div>
 
-      {/* Divisor y panel de diff — solo en modo NO compacto */}
       {!compactMode && selectedCommit && (
         <>
           <div
+            className="hp-resize-handle"
             onMouseDown={onMouseDown}
-            style={{
-              width: '5px',
-              flexShrink: 0,
-              cursor: 'col-resize',
-              background: 'var(--border)',
-              transition: 'background 0.15s',
-              position: 'relative',
-              zIndex: 10,
-            }}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent)')}
             onMouseLeave={e => (e.currentTarget.style.background = isDragging.current ? 'var(--accent)' : 'var(--border)')}
           />
-          <div className="commit-diff-col" style={{ flex: 1, minWidth: 0, width: 'auto' }}>
-            <div className="diff-header" style={{ padding: '10px 14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="diff-file-path" style={{ fontWeight: 'bold', marginBottom: '3px' }}>
-                    {selectedCommitData?.message.split('\n')[0]}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    {selectedCommitData?.id}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                    📅 {selectedCommitData ? formatDate(selectedCommitData.timestamp) : 'Fecha desconocida'}
-                  </div>
+          <div className="hp-diff-col" style={{ flex: 1, width: 'auto' }}>
+            <div className="hp-diff-header">
+              <div className="hp-diff-info">
+                <div className="hp-diff-title">
+                  {selectedCommitData?.message.split('\n')[0]}
                 </div>
-                <button className="btn-close" onClick={() => { setSelectedCommit(null); setFileDiffs([]); }} style={{ marginLeft: '10px' }}>✕</button>
+                <div className="hp-diff-meta">
+                  {selectedCommitData?.id}
+                </div>
+                <div className="hp-diff-date">
+                  <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
+                    <path d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5H2.5Z"/>
+                  </svg>
+                  {selectedCommitData ? formatDate(selectedCommitData.timestamp) : 'Fecha desconocida'}
+                </div>
               </div>
+              <button className="hp-btn" onClick={() => { setSelectedCommit(null); setFileDiffs([]); }} title="Cerrar">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </button>
             </div>
-            <div className="diff-body" style={{ padding: '10px' }}>
+            <div className="hp-body">
               <FileDiffViewer fileDiffs={fileDiffs} loading={loadingDiff} />
             </div>
           </div>

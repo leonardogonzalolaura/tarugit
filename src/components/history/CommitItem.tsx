@@ -1,4 +1,4 @@
-import { ExtendedCommitInfo } from './HistoryPanel';  // ← Importar desde types, no desde HistoryPanel
+import { ExtendedCommitInfo } from './HistoryPanel';
 import { formatDate, formatCommitMessage } from './utils';
 
 interface CommitItemProps {
@@ -28,163 +28,43 @@ export function CommitItem({
 
   return (
     <div
-      className={`commit-item ${isFirst ? 'latest' : ''} ${isSelected ? 'selected' : ''}`}
-      style={{
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '8px 12px',
-        borderRadius: 'var(--radius-sm)',
-        transition: 'all 0.12s ease',
-        backgroundColor: isSelected ? 'var(--bg-selected)' : 'transparent',
-        border: `1px solid ${isSelected ? 'var(--accent-dim)' : 'transparent'}`
-      }}
+      className={`hc-item ${isFirst ? 'latest' : ''} ${isSelected ? 'selected' : ''}`}
     >
-      {/* Checkbox para selección múltiple */}
-      <div 
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleSelection(commit.id);
-        }}
-        style={{
-          width: '16px',
-          height: '16px',
-          borderRadius: '3px',
-          border: `1px solid ${isChecked ? 'var(--accent)' : 'var(--border)'}`,
-          background: isChecked ? 'var(--accent)' : 'transparent',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0
-        }}
-      >
-        {isChecked && <span style={{ fontSize: '10px', color: '#fff', fontWeight: 'bold' }}>✓</span>}
+      <div className="hc-cb">
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={() => onToggleSelection(commit.id)}
+          onClick={e => e.stopPropagation()}
+        />
       </div>
 
-      {/* Gráfico de conexión entre commits */}
-      <div 
-        className="commit-graph"
-        onClick={() => onSelectCommit(commit)}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          width: '16px',
-          flexShrink: 0,
-          cursor: 'pointer'
-        }}
-      >
-        <div 
-          className="commit-dot" 
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: isFirst ? 'var(--accent)' : 'var(--border-light)',
-            border: `2px solid ${isFirst ? 'transparent' : 'var(--bg-base)'}`,
-            flexShrink: 0
-          }}
-        />
-        {!isLast && (
-          <div 
-            className="commit-line" 
-            style={{
-              width: '2px',
-              flex: 1,
-              backgroundColor: 'var(--border)',
-              marginTop: '2px',
-              marginBottom: '2px'
-            }}
-          />
-        )}
+      <div className="hc-graph" onClick={() => onSelectCommit(commit)}>
+        <div className="hc-dot" />
+        {!isLast && <div className="hc-line" />}
       </div>
-      
-      {/* Contenido del commit */}
-      <div 
-        className="commit-body" 
-        onClick={() => onSelectCommit(commit)}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          cursor: 'pointer'
-        }}
-      >
-        <div className="commit-row-top" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          flexWrap: 'wrap',
-          marginBottom: '2px'
-        }}>
-          <span 
-            className="commit-hash" 
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
-              color: 'var(--accent)',
-              backgroundColor: 'rgba(110,127,255,0.15)',
-              padding: '2px 6px',
-              borderRadius: '4px'
-            }}
-          >
-            {shortId}
-          </span>
-          {isFirst && (
-            <span 
-              className="commit-latest-badge" 
-              style={{
-                fontSize: '9px',
-                fontWeight: 700,
-                backgroundColor: 'var(--yellow-bg)',
-                color: 'var(--yellow)',
-                padding: '2px 6px',
-                borderRadius: '4px'
-              }}
-            >
-              HEAD
-            </span>
-          )}
-          <span 
-            className="commit-date" 
-            style={{
-              fontSize: '10px',
-              color: 'var(--text-muted)',
-              marginLeft: 'auto',
-              fontFamily: 'var(--font-mono)'
-            }}
-          >
-            📅 {formatDate(commit.timestamp)}
+
+      <div className="hc-body" onClick={() => onSelectCommit(commit)}>
+        <div className="hc-row-top">
+          <span className="hc-hash">{shortId}</span>
+          {isFirst && <span className="hc-head-badge">HEAD</span>}
+          <span className="hc-date">
+            <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
+              <path d="M4.75 0a.75.75 0 0 1 .75.75V2h5V.75a.75.75 0 0 1 1.5 0V2h1.25c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25V3.75C1 2.784 1.784 2 2.75 2H4V.75A.75.75 0 0 1 4.75 0ZM2.5 7.5v6.75c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V7.5H2.5Z"/>
+            </svg>
+            {formatDate(commit.timestamp)}
           </span>
         </div>
-        
-        <div 
-          className="commit-message" 
-          style={{
-            fontSize: '12px',
-            color: 'var(--text-primary)',
-            fontWeight: isSelected ? 600 : 400,
-            marginBottom: '4px',
-            lineHeight: 1.4
-          }}
-        >
+
+        <div className="hc-message">
           {message}
         </div>
-        
-        <div className="commit-meta">
-          <span 
-            className="commit-author" 
-            style={{
-              fontSize: '10px',
-              color: 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            👤 {commit.author}
-          </span>
+
+        <div className="hc-author">
+          <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor">
+            <path d="M8 1.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM4 8a4 4 0 1 1 8 0v.5a.75.75 0 0 1-.75.75h-6.5A.75.75 0 0 1 4 8.5V8Zm0 2.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 4 10.5Zm8 0a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 12 10.5Z"/>
+          </svg>
+          {commit.author}
         </div>
       </div>
     </div>
