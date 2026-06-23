@@ -806,27 +806,27 @@ html, body, #root {
 .fd-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 4px 10px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 10px;
 }
 .fd-sum-count { color: var(--text-secondary); font-weight: 500; }
-.fd-sum-divider { width: 1px; height: 12px; background: var(--border); }
-.fd-sum-adds { color: var(--green); font-weight: 600; font-family: var(--font-mono); }
-.fd-sum-dels { color: var(--red); font-weight: 600; font-family: var(--font-mono); }
+.fd-sum-divider { width: 1px; height: 10px; background: var(--border); }
+.fd-sum-adds { color: var(--green); font-weight: 600; font-family: var(--font-mono); font-size: 10px; }
+.fd-sum-dels { color: var(--red); font-weight: 600; font-family: var(--font-mono); font-size: 10px; }
 
 .fd-list {
   flex: 1;
   overflow: auto;
-  padding: 4px 8px;
+  padding: 4px 6px;
 }
 
 .fd-item {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   overflow: hidden;
   transition: border-color .12s;
 }
@@ -835,18 +835,19 @@ html, body, #root {
 .fd-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 3px 8px;
   cursor: pointer;
   background: var(--bg-surface);
   transition: background .08s;
   user-select: none;
+  min-height: 26px;
 }
 .fd-head:hover { background: var(--bg-hover); }
 .fd-head.expanded { background: var(--bg-hover); }
 
 .fd-chevron {
-  font-size: 8px;
+  font-size: 7px;
   color: var(--text-muted);
   flex-shrink: 0;
   transition: transform .12s;
@@ -858,7 +859,7 @@ html, body, #root {
   display: flex;
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
 }
 .fd-dir {
   overflow: hidden;
@@ -867,72 +868,98 @@ html, body, #root {
   flex-shrink: 1;
   min-width: 10px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
 }
 .fd-name {
   flex-shrink: 0;
   white-space: nowrap;
   color: var(--text-primary);
+  font-size: 10px;
 }
 
 .fd-stats {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 .fd-add {
   color: var(--green);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   font-family: var(--font-mono);
 }
 .fd-del {
   color: var(--red);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   font-family: var(--font-mono);
 }
 
+.fd-head-actions {
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity .1s;
+  flex-shrink: 0;
+}
+.fd-head:hover .fd-head-actions { opacity: 1; }
+
+.fd-head-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 10px;
+  transition: all .1s;
+}
+.fd-head-btn:hover { background: var(--accent-glow); color: var(--accent); }
+
 .fd-body {
   border-top: 1px solid var(--border);
-  max-height: 350px;
+  max-height: 250px;
   overflow: auto;
   background: var(--bg-base);
 }
 
 .fd-lines {
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .fd-line {
   display: flex;
-  min-height: 18px;
+  min-height: 16px;
 }
 
 .fd-ln {
-  width: 40px;
+  width: 32px;
   text-align: right;
-  padding: 0 6px;
+  padding: 0 4px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
   flex-shrink: 0;
   user-select: none;
 }
 
 .fd-ln-marker {
-  width: 16px;
+  width: 14px;
   text-align: center;
   flex-shrink: 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
   user-select: none;
 }
 
 .fd-ln-text {
   flex: 1;
-  padding: 0 6px;
+  padding: 0 4px;
   white-space: pre;
   overflow-x: auto;
 }
@@ -949,11 +976,66 @@ html, body, #root {
 .fd-line-del .fd-ln-marker { color: var(--red); }
 
 .fd-empty {
-  padding: 16px;
+  padding: 12px;
   text-align: center;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
 }
+
+/* ─── File Hierarchy Popover ─────────────────────────────────────────────── */
+.fd-hierarchy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.5);
+}
+.fd-hierarchy {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  min-width: 240px;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+}
+.fd-hierarchy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.fd-hierarchy-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.fd-hierarchy-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.fd-hierarchy-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fd-hl-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+.fd-hl-item.file { color: var(--text-primary); font-weight: 500; }
+.fd-hl-spacer { width: 20px; flex-shrink: 0; }
 
 /* ─── Commit Panel ────────────────────────────────────────────────────────── */
 .commit-panel {

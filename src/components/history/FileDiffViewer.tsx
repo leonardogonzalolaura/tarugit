@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { FileHierarchyModal } from '../FileHierarchyModal';
 
 interface FileDiff {
   path: string;
@@ -14,10 +15,15 @@ interface FileDiffViewerProps {
 
 function FileDiffItem({ file }: { file: FileDiff }) {
   const [expanded, setExpanded] = useState(false);
+  const [showHierarchy, setShowHierarchy] = useState(false);
 
   const parts = file.path.replace(/\\/g, '/').split('/');
   const filename = parts.pop() ?? file.path;
   const dir = parts.join('/');
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(file.path);
+  }, [file.path]);
 
   return (
     <div className="fd-item">
@@ -31,7 +37,24 @@ function FileDiffItem({ file }: { file: FileDiff }) {
           {file.additions > 0 && <span className="fd-add">+{file.additions}</span>}
           {file.deletions > 0 && <span className="fd-del">-{file.deletions}</span>}
         </span>
+        <span className="fd-head-actions">
+          <button className="fd-head-btn" onClick={e => { e.stopPropagation(); handleCopy(); }} title="Copiar ruta">
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+              <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
+              <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+            </svg>
+          </button>
+          <button className="fd-head-btn" onClick={e => { e.stopPropagation(); setShowHierarchy(true); }} title="Ver jerarquía">
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+              <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v2.5C0 6.216.784 7 1.75 7h2.5A1.75 1.75 0 0 0 6 5.25v-2.5A1.75 1.75 0 0 0 4.25 1ZM8 12.25A2.25 2.25 0 0 1 10.25 10h2.5A2.25 2.25 0 0 1 15 12.25v.5a2.25 2.25 0 0 1-2.25 2.25h-2.5A2.25 2.25 0 0 1 8 12.75ZM14 4.75A2.75 2.75 0 1 0 8.5 6.5L7.36 9.2a3.25 3.25 0 0 1 .98.68l1.16-2.78A2.75 2.75 0 0 0 14 4.75Z"/>
+            </svg>
+          </button>
+        </span>
       </div>
+
+      {showHierarchy && (
+        <FileHierarchyModal path={file.path} onClose={() => setShowHierarchy(false)} />
+      )}
 
       {expanded && (
         <div className="fd-body">
@@ -87,7 +110,7 @@ export function FileDiffViewer({ fileDiffs, loading }: FileDiffViewerProps) {
 
   if (loading) {
     return (
-      <div className="panel-loading" style={{ height: '100%' }}>
+      <div className="fd-empty" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span className="spinner" /> Cargando diff...
       </div>
     );
@@ -95,7 +118,7 @@ export function FileDiffViewer({ fileDiffs, loading }: FileDiffViewerProps) {
 
   if (fileDiffs.length === 0) {
     return (
-      <div className="panel-empty" style={{ height: '100%' }}>
+      <div className="fd-empty" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         No hay cambios en este commit
       </div>
     );
