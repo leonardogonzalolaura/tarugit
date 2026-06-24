@@ -165,6 +165,10 @@ function App() {
     if (result?.stashes) setStashes(result.stashes);
   }, [refreshStatus, setStashes]);
 
+  useEffect(() => {
+    if (repoPath) refreshAll();
+  }, [repoPath, refreshAll]);
+
   const handleStashSave = useCallback(async (message: string, includeUntracked: boolean, filesToStash: string[] | null) => {
     await handleSaveStash(repoPath, message, includeUntracked, filesToStash, refreshAll);
   }, [repoPath, handleSaveStash, refreshAll]);
