@@ -3233,9 +3233,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 
 .cr-pane-body {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
+  overflow: auto;
   padding: 8px;
+  height: 100%;
+  box-sizing: border-box;
 }
 .cr-pane-body.ours { background: var(--bg-base); }
 .cr-pane-body.result { background: var(--bg-base); }
@@ -3390,6 +3391,9 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   pointer-events: none;
   z-index: 20;
 }
+.cr-minimap.right {
+  right: 6px;
+}
 .cr-minimap-inner {
   pointer-events: all;
   display: flex;
@@ -3498,6 +3502,32 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   font-size: 10px;
 }
 .cr-post-modal-tip strong { font-weight: 600; color: var(--text-primary); }
+
+/* Layout: diff-result (stacked) */
+.cr-layout-stacked {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.cr-diff-row {
+  flex: 0 0 45%;
+  min-height: 100px;
+}
+
+/* Layout: vertical */
+.cr-layout-vertical {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.cr-vert-section {
+  flex: 1;
+  min-height: 60px;
+  overflow: hidden;
+  position: relative;
+}
 .cr-post-modal-busy {
   display: flex;
   align-items: center;

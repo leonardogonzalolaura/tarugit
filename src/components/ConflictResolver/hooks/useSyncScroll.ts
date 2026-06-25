@@ -33,29 +33,26 @@ export function useSyncScroll() {
   }, []);
 
   const jumpToBlock = useCallback((blockId: string) => {
-    // Usar resultRef como referencia principal para calcular el offset
-    const resultContainer = resultRef.current;
-    if (!resultContainer) return;
-
-    const target = resultContainer.querySelector(`[data-conflict-block="${blockId}"]`) as HTMLElement;
-    if (!target) return;
-
-    // Calcular offsetTop relativo al scroll container (no al viewport)
-    let offsetTop = 0;
-    let el: HTMLElement | null = target;
-    while (el && el !== resultContainer) {
-      offsetTop += el.offsetTop;
-      el = el.offsetParent as HTMLElement;
-    }
-
-    const scrollTop = Math.max(0, offsetTop - 16);
-
-    // Aplicar a los 3 paneles directamente
     for (const ref of [oursRef, resultRef, theirsRef]) {
-      if (ref.current) ref.current.scrollTop = scrollTop;
+      const container = ref.current;
+      if (!container) continue;
+
+      const target = container.querySelector(`[data-conflict-block="${blockId}"]`) as HTMLElement;
+      if (!target) continue;
+
+      let offsetTop = 0;
+      let el: HTMLElement | null = target;
+      while (el && el !== container) {
+        offsetTop += el.offsetTop;
+        el = el.offsetParent as HTMLElement;
+      }
+
+      container.scrollTop = Math.max(0, offsetTop - 16);
     }
 
-    setScrollInfo(prev => ({ ...prev, scrollTop }));
+    if (resultRef.current) {
+      setScrollInfo(prev => ({ ...prev, scrollTop: resultRef.current!.scrollTop }));
+    }
   }, []);
 
   return { oursRef, resultRef, theirsRef, scrollInfo, syncScroll, jumpToBlock };

@@ -1,4 +1,5 @@
 export type BlockResolution = 'pending' | 'ours' | 'theirs' | 'both' | 'ignore' | 'custom';
+export type LayoutMode = 'side' | 'diff-result' | 'vertical';
 
 export interface ConflictFileBlock {
   id: string;
