@@ -11,6 +11,7 @@ import { FileDiffViewer } from './components/history/FileDiffViewer';
 import { FileHistoryModal } from './components/history/FileHistoryModal';
 import { BranchGraph } from './components/graph/BranchGraph';
 import { formatDate } from './components/history/utils';
+import { FileDiff, StashInfo } from './types';
 import { ConflictResolver } from './components/ConflictResolver/index';
 import { OperationStatusBar } from './components/OperationStatusBar';
 import { Footer } from './components/Footer';
@@ -59,6 +60,9 @@ function App() {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
+  const [selectedStash, setSelectedStash] = useState<StashInfo | null>(null);
+  const [stashDiffs, setStashDiffs] = useState<FileDiff[]>([]);
+  const [stashLoading, setStashLoading] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -175,6 +179,26 @@ function App() {
 
   const handleFileHistory = useCallback((path: string) => {
     setFileHistoryPath(path);
+  }, []);
+
+  const handleSelectStash = useCallback(async (stash: StashInfo) => {
+    setSelectedStash(stash);
+    if (!repoPath) return;
+    setStashLoading(true);
+    try {
+      const diffs = await invoke<FileDiff[]>('get_stash_diff', { repoPath, stashIndex: stash.index });
+      setStashDiffs(diffs ?? []);
+    } catch (e) {
+      console.error('Error cargando diff del stash:', e);
+      setStashDiffs([]);
+    } finally {
+      setStashLoading(false);
+    }
+  }, [repoPath]);
+
+  const handleCloseStash = useCallback(() => {
+    setSelectedStash(null);
+    setStashDiffs([]);
   }, []);
 
   const openRepoWithReset = useCallback(async (path: string) => {
@@ -354,6 +378,8 @@ function App() {
                     stashes={stashes}
                     loading={loading}
                     onRefresh={refreshAll}
+                    onSelectStash={handleSelectStash}
+                    selectedStashId={selectedStash?.id ?? null}
                   />
                 </div>
               )}
@@ -397,6 +423,43 @@ function App() {
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>🕓</div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>Selecciona un commit</div>
+                    <div style={{ fontSize: 11, marginTop: 4 }}>para ver sus cambios aquí</div>
+                  </div>
+                </div>
+              )
+            )}
+
+            {leftTab === 'stash' && (
+              selectedStash ? (
+                <div className="diff-panel">
+                  <div className="diff-header" style={{ padding: '8px 12px', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="diff-file-path" style={{ fontWeight: 600, marginBottom: 2, fontSize: 12 }}>
+                        {selectedStash.name}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: 2 }}>
+                        {selectedStash.message}
+                      </div>
+                    </div>
+                    <button className="btn-close" onClick={handleCloseStash}>
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                        <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="diff-body" style={{ padding: '8px' }}>
+                    <FileDiffViewer fileDiffs={stashDiffs} loading={stashLoading} />
+                  </div>
+                </div>
+              ) : (
+                <div className="diff-empty">
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>
+                      <svg viewBox="0 0 16 16" width="32" height="32" fill="currentColor">
+                        <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"/>
+                      </svg>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>Selecciona un stash</div>
                     <div style={{ fontSize: 11, marginTop: 4 }}>para ver sus cambios aquí</div>
                   </div>
                 </div>

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-//import { invoke } from '@tauri-apps/api/core';
 import { useConflictData } from './hooks/useConflictData';
 import { useSyncScroll } from './hooks/useSyncScroll';
 import { useConflictOperations } from './hooks/useConflictOperations';
@@ -16,6 +15,10 @@ interface ConflictResolverProps {
   operationContext?: OperationContext;
 }
 
+const SvgBolt = () => <svg width="12" height="12" viewBox="0 0 16 16" fill="currentcolor"><path d="M6.906.664a.75.75 0 0 1 .603.366l5.5 9.5A.75.75 0 0 1 12.5 11.5H9l-.406 3.836a.75.75 0 0 1-1.422-.366l-1-8.5a.75.75 0 0 1 .578-.845L9.1 7.51 8.49 2.955 7.5 3.885 7.078 2.31a.75.75 0 0 1-.172-1.646Z"/></svg>;
+const SvgSave = () => <svg width="11" height="11" viewBox="0 0 16 16" fill="currentcolor"><path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 11.586 1H2Zm0 1h.5v2.5A1.5 1.5 0 0 0 4 6h5a1.5 1.5 0 0 0 1.5-1.5V2.414l2 2V14H12V9.5a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 4 9.5V14H2V2Zm2 0h4v2H4V2Zm6 0h.5v2.5a.5.5 0 0 1-.5.5H9V2.5a.5.5 0 0 1 .5-.5H10ZM5.5 10h5a.5.5 0 0 1 .5.5V14H5v-3.5a.5.5 0 0 1 .5-.5Z"/></svg>;
+const SvgClose = () => <svg width="11" height="11" viewBox="0 0 16 16" fill="currentcolor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>;
+
 export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, operationContext }: ConflictResolverProps) {
   const [blocks, setBlocks] = useState<ConflictFileBlock[]>([]);
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
@@ -31,7 +34,6 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
   const { resolvedCount, totalConflicts } = getConflictStats(blocks);
   const allResolved = resolvedCount === totalConflicts;
 
-  // Handlers para acciones sobre bloques
   const updateBlock = (blockId: string, updater: (block: ConflictFileBlock) => ConflictFileBlock) => {
     setBlocks(prev => prev.map(b => b.id === blockId ? updater(b) : b));
   };
@@ -71,7 +73,7 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
   if (error) {
     return (
       <div className="panel-empty" style={{ padding: '40px', textAlign: 'center' }}>
-        <h3>⚠️ Error cargando conflictos</h3>
+        <h3><SvgBolt /> Error cargando conflictos</h3>
         <p>{error}</p>
         <button className="btn-secondary" onClick={onCancel}>Regresar</button>
       </div>
@@ -91,23 +93,22 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
         />
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-base)' }}>
-        {/* Header con progreso */}
-        <div style={{ padding: '10px 16px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span>⚡ Conflictos:</span>
-            <span style={{ fontFamily: 'var(--font-mono)' }}>{filename}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '80px', height: '6px', background: 'var(--border)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${(resolvedCount / totalConflicts) * 100}%`, height: '100%', background: allResolved ? 'var(--green)' : 'var(--accent)' }} />
+      <div className="cr">
+        <div className="cr-header">
+          <div className="cr-header-left">
+            <span className="cr-file-icon"><SvgBolt /></span>
+            <span className="cr-filename">{filename}</span>
+            <div className="cr-progress">
+              <div className="cr-progress-bar-bg">
+                <div className={`cr-progress-bar-fill${allResolved ? ' done' : ''}`} style={{ width: `${(resolvedCount / totalConflicts) * 100}%` }} />
               </div>
-              <span style={{ fontSize: '11px' }}>{resolvedCount}/{totalConflicts} resueltos</span>
+              <span className="cr-progress-label">{resolvedCount}/{totalConflicts}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn-secondary" onClick={onCancel}>Cancelar</button>
-            <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ background: allResolved ? 'var(--green)' : 'var(--accent)' }}>
-              {allResolved ? '✅ Guardar Resolución' : '💾 Guardar'}
+          <div className="cr-header-actions">
+            <button className="cr-hdr-btn" onClick={onCancel}><SvgClose /> Cancelar</button>
+            <button className={`cr-hdr-btn save${allResolved ? ' all-resolved' : ''}`} onClick={handleSave} disabled={saving}>
+              <SvgSave /> {allResolved ? 'Guardar Resolución' : 'Guardar'}
             </button>
           </div>
         </div>

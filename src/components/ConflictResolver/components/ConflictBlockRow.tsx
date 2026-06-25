@@ -4,7 +4,6 @@ interface ConflictBlockRowProps {
   block: ConflictFileBlock;
   conflictNumber: number;
   totalConflicts: number;
-  isHovered: boolean;
   onHoverEnter: () => void;
   onHoverLeave: () => void;
   onAcceptOurs: () => void;
@@ -15,11 +14,15 @@ interface ConflictBlockRowProps {
   pane: 'ours' | 'result' | 'theirs';
 }
 
+const SvgArrowLeft = () => <svg width="9" height="9" viewBox="0 0 16 16" fill="currentcolor"><path d="M7.78 12.53a.75.75 0 0 1-1.06 0L2.22 8.03a.75.75 0 0 1 0-1.06l4.5-4.5a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L5.06 7h8.19a.75.75 0 0 1 0 1.5H5.06l2.72 2.72a.75.75 0 0 1 0 1.06Z"/></svg>;
+const SvgArrowRight = () => <svg width="9" height="9" viewBox="0 0 16 16" fill="currentcolor"><path d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L10.94 9.5H2.75a.75.75 0 0 1 0-1.5h8.19L8.22 4.03a.75.75 0 0 1 0-1.06Z"/></svg>;
+const SvgLink = () => <svg width="9" height="9" viewBox="0 0 16 16" fill="currentcolor"><path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/></svg>;
+const SvgX = () => <svg width="9" height="9" viewBox="0 0 16 16" fill="currentcolor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>;
+
 export function ConflictBlockRow({
   block,
   conflictNumber,
   totalConflicts,
-  isHovered,
   onHoverEnter,
   onHoverLeave,
   onAcceptOurs,
@@ -31,60 +34,52 @@ export function ConflictBlockRow({
 }: ConflictBlockRowProps) {
   const isPending = !block.resolution || block.resolution === 'pending';
 
-  const glowColor = isHovered ? 'rgba(110,127,255,0.18)' : 'transparent';
-  const borderColor = isHovered
-    ? 'var(--accent)'
-    : isPending
-      ? (pane === 'ours' ? 'var(--green-border)' : pane === 'theirs' ? 'var(--red-border)' : 'var(--accent-dim)')
-      : 'var(--green-border)';
-  const bgColor = isHovered
-    ? glowColor
-    : isPending
-      ? (pane === 'ours' ? 'var(--green-bg)' : pane === 'theirs' ? 'var(--red-bg)' : 'rgba(110,127,255,0.04)')
-      : 'rgba(61,214,140,0.04)';
+  const pendingClass = isPending ? 'pending' : 'resolved';
 
   return (
     <div
       onMouseEnter={onHoverEnter}
       onMouseLeave={onHoverLeave}
       data-conflict-block={block.id}
-      style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 'var(--radius-sm)', marginBottom: '8px', position: 'relative', transition: 'all 0.15s' }}
+      className={`cr-block conflict ${pendingClass} ${pane}`}
     >
-      <div style={{ position: 'absolute', top: '-10px', left: '8px', fontSize: '9px', fontWeight: 700, background: isPending ? 'var(--red)' : 'var(--green)', color: '#000', padding: '1px 6px', borderRadius: '4px', zIndex: 1 }}>
-        {isPending ? `⚡ CONFLICTO ${conflictNumber}/${totalConflicts}` : `✓ RESUELTO`}
+      <div className={`cr-block-badge ${pendingClass}`}>
+        {isPending ? `CONFLICTO ${conflictNumber}/${totalConflicts}` : `RESUELTO`}
       </div>
 
-      <div style={{ padding: '18px 8px 8px' }}>
+      <div className="cr-block-content">
         {pane === 'result' ? (
           <textarea
             value={block.content}
             onChange={e => onUpdateContent(e.target.value)}
-            style={{ width: '100%', minHeight: `${Math.max(120, (block.content.split('\n').length) * 32)}px`, background: '#0e0e16', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: 1.4 }}
+            className="cr-block-textarea"
           />
         ) : (
-          <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: 1.6, padding: '4px' }}>
+          <div className="cr-block-text">
             {(pane === 'ours' ? block.oursContent : block.theirsContent)?.split('\n').map((line, li) => (
-              <div key={li} style={{ padding: '1px 4px', borderRadius: '2px', color: pane === 'ours' ? '#b9f5d8' : '#ffd0d0' }}>{line || ' '}</div>
+              <div key={li} className={`cr-block-line ${pane}`}>{line || ' '}</div>
             ))}
           </div>
         )}
 
         {pane === 'result' && (
-          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-            <button onClick={onAcceptOurs} style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', color: 'var(--green)', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>⬅️ Aceptar Local</button>
-
-            <button onClick={onAcceptBoth} style={{ background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>🔗 Aceptar Ambos</button>
-
-            <button onClick={onAcceptTheirs} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px', cursor: 'pointer' }}>Aceptar Entrante ➡️</button>
-
-            <button onClick={onIgnore} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', cursor: 'pointer', marginLeft: 'auto' }}>✕ Ignorar</button>
+          <div className="cr-block-actions">
+            <button className="cr-block-act-btn ours" onClick={onAcceptOurs}>
+              <SvgArrowLeft /> Aceptar Local
+            </button>
+            <button className="cr-block-act-btn both" onClick={onAcceptBoth}>
+              <SvgLink /> Aceptar Ambos
+            </button>
+            <button className="cr-block-act-btn theirs" onClick={onAcceptTheirs}>
+              Aceptar Entrante <SvgArrowRight />
+            </button>
+            <button className="cr-block-act-btn ignore" onClick={onIgnore}>
+              <SvgX /> Ignorar
+            </button>
           </div>
         )}
 
-        {/* Espacio reservado en ours/theirs para igualar altura con el panel result */}
-        {pane !== 'result' && (
-          <div style={{ height: '34px', marginTop: '8px' }} />
-        )}
+        {pane !== 'result' && <div className="cr-block-spacer" />}
       </div>
     </div>
   );

@@ -1,4 +1,3 @@
-// components/ThreeWayMergeViewer.tsx
 import React, { useCallback } from 'react';
 import { ConflictFileBlock, ScrollInfo } from '../ConflictResolver.types';
 import { ConflictBlockRow } from './ConflictBlockRow';
@@ -21,8 +20,12 @@ interface ThreeWayMergeViewerProps {
   onAcceptBoth: (blockId: string) => void;
   onIgnore: (blockId: string) => void;
   onUpdateContent: (blockId: string, value: string) => void;
-  operationContext?: { type: 'merge' | 'rebase' | 'cherry-pick' }; // ← AÑADIR ESTA LÍNEA
+  operationContext?: { type: 'merge' | 'rebase' | 'cherry-pick' };
 }
+
+const SvgArrowLeft = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M7.78 12.53a.75.75 0 0 1-1.06 0L2.22 8.03a.75.75 0 0 1 0-1.06l4.5-4.5a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L5.06 7h8.19a.75.75 0 0 1 0 1.5H5.06l2.72 2.72a.75.75 0 0 1 0 1.06Z"/></svg>;
+const SvgArrowRight = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L10.94 9.5H2.75a.75.75 0 0 1 0-1.5h8.19L8.22 4.03a.75.75 0 0 1 0-1.06Z"/></svg>;
+const SvgPencil = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L4.513 10.08a.25.25 0 0 0-.064.108l-.562 1.967 1.967-.562a.25.25 0 0 0 .108-.064l7.147-7.147a.25.25 0 0 0 0-.354l-1.086-1.086Z"/></svg>;
 
 export function ThreeWayMergeViewer({
   blocks,
@@ -37,13 +40,12 @@ export function ThreeWayMergeViewer({
   onAcceptBoth,
   onIgnore,
   onUpdateContent,
-  operationContext // ← AÑADIR ESTA LÍNEA
+  operationContext
 }: ThreeWayMergeViewerProps) {
   const { oursRef, resultRef, theirsRef } = scrollRefs;
   const totalConflicts = blocks.filter(b => b.type === 'conflict').length;
   const isRebase = operationContext?.type === 'rebase';
 
-  // Handlers de scroll
   const onScrollOurs = useCallback(() => syncScroll(oursRef)(), [syncScroll]);
   const onScrollResult = useCallback(() => syncScroll(resultRef)(), [syncScroll]);
   const onScrollTheirs = useCallback(() => syncScroll(theirsRef)(), [syncScroll]);
@@ -58,19 +60,10 @@ export function ThreeWayMergeViewer({
         return (
           <div
             key={block.id}
-            style={{
-              whiteSpace: 'pre-wrap',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '12px',
-              lineHeight: 1.6,
-              color: 'var(--text-secondary)',
-              padding: '2px 4px',
-              marginBottom: '8px',
-              opacity: isHovered ? 0.4 : 1,
-              transition: 'opacity 0.15s'
-            }}
+            className="cr-block clean"
+            style={{ opacity: isHovered ? .4 : 1 }}
           >
-            {block.content}
+            <div className="cr-block-text">{block.content}</div>
           </div>
         );
       }
@@ -81,7 +74,6 @@ export function ThreeWayMergeViewer({
           block={block}
           conflictNumber={conflictCounter}
           totalConflicts={totalConflicts}
-          isHovered={isHovered}
           onHoverEnter={() => onHoverChange(block.id)}
           onHoverLeave={() => onHoverChange(null)}
           onAcceptOurs={() => onAcceptOurs(block.id)}
@@ -95,11 +87,9 @@ export function ThreeWayMergeViewer({
     });
   };
 
-  // Si es rebase, intercambiamos visualmente los paneles izquierdo y derecho
   const leftPaneContent = isRebase ? renderBlocks('theirs') : renderBlocks('ours');
   const rightPaneContent = isRebase ? renderBlocks('ours') : renderBlocks('theirs');
-  
-  // Los refs también se intercambian durante rebase
+
   const leftRef = isRebase ? theirsRef : oursRef;
   const rightRef = isRebase ? oursRef : theirsRef;
   const onScrollLeft = isRebase ? onScrollTheirs : onScrollOurs;
@@ -107,67 +97,46 @@ export function ThreeWayMergeViewer({
 
   return (
     <>
-      {/* Títulos de los paneles - Siempre igual para el usuario */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1.2fr 1fr',
-        gap: '2px',
+        gap: '1px',
         background: 'var(--border)',
         flexShrink: 0
       }}>
-        <div style={{ padding: '7px 12px', background: '#0f1e16', fontSize: '11px', fontWeight: 700, color: 'var(--green)' }}>
-          ⬅️ Tus Cambios Locales
+        <div className="cr-pane-header ours">
+          <SvgArrowLeft /> Tus Cambios Locales
         </div>
-        <div style={{ padding: '7px 12px', background: '#111128', fontSize: '11px', fontWeight: 700, color: 'var(--accent)' }}>
-          📝 Resultado Fusionado <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>editable</span>
+        <div className="cr-pane-header result">
+          <SvgPencil /> Resultado Fusionado
+          <span className="editable-hint">editable</span>
         </div>
-        <div style={{ padding: '7px 12px', background: '#1e0f0f', fontSize: '11px', fontWeight: 700, color: 'var(--red)' }}>
-          Cambios Entrantes ➡️
+        <div className="cr-pane-header theirs">
+          Cambios Entrantes <SvgArrowRight />
         </div>
       </div>
 
-      {/* Grid de 3 paneles */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1.2fr 1fr',
         flex: 1,
         overflow: 'hidden',
-        gap: '2px',
+        gap: '1px',
         background: 'var(--border)',
         position: 'relative'
       }}>
-        {/* Panel izquierdo - Siempre muestra TUS cambios locales */}
-        <div style={{ background: '#0b150f', overflow: 'hidden' }}>
-          <div 
-            ref={leftRef} 
-            onScroll={onScrollLeft} 
-            style={{ height: '100%', overflowY: 'auto', padding: '12px' }}
-          >
-            {leftPaneContent}
-          </div>
+        <div ref={leftRef} onScroll={onScrollLeft} className="cr-pane-body ours">
+          {leftPaneContent}
+        </div>
+        <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ paddingRight: 38 }}>
+          {renderBlocks('result')}
+        </div>
+        <div ref={rightRef} onScroll={onScrollRight} className="cr-pane-body theirs">
+          {rightPaneContent}
         </div>
 
-        {/* Panel central - Resultado */}
-        <div style={{ background: '#0d0d18', overflow: 'hidden' }}>
-          <div ref={resultRef} onScroll={onScrollResult} style={{ height: '100%', overflowY: 'auto', padding: '12px', paddingRight: '44px' }}>
-            {renderBlocks('result')}
-          </div>
-        </div>
-
-        {/* Panel derecho - Siempre muestra cambios entrantes */}
-        <div style={{ background: '#150b0b', overflow: 'hidden' }}>
-          <div 
-            ref={rightRef} 
-            onScroll={onScrollRight} 
-            style={{ height: '100%', overflowY: 'auto', padding: '12px' }}
-          >
-            {rightPaneContent}
-          </div>
-        </div>
-
-        {/* Minimap */}
-        <div style={{ position: 'absolute', top: 0, bottom: 0, right: 'calc(33.33% - 10px)', display: 'flex', alignItems: 'center', pointerEvents: 'none', zIndex: 20 }}>
-          <div style={{ pointerEvents: 'all' }}>
+        <div className="cr-minimap">
+          <div className="cr-minimap-inner">
             <ConflictMinimap
               blocks={blocks}
               totalHeight={scrollInfo.totalHeight}

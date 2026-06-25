@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { BranchInfo } from '../../types';
+import { BranchInfo, FileDiff } from '../../types';
 import { CherryPickModal } from './CherryPickModal';
 import { FileDiffViewer } from './FileDiffViewer';
 import { CommitItem } from './CommitItem';
@@ -12,13 +12,6 @@ export interface ExtendedCommitInfo {
   message: string;
   author: string;
   timestamp: number;
-}
-
-interface FileDiff {
-  path: string;
-  diff: string;
-  additions: number;
-  deletions: number;
 }
 
 interface HistoryPanelProps {

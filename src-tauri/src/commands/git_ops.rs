@@ -1134,6 +1134,88 @@ pub fn get_stash_list(repo_path: String) -> Result<Vec<StashInfo>, String> {
 }
 
 #[command]
+pub fn get_stash_diff(repo_path: String, stash_index: usize) -> Result<Vec<FileDiffInfo>, String> {
+    log::info!("Obteniendo diff del stash: stash@{{{}}}", stash_index);
+    let diff_output = create_git_command()
+        .args(["stash", "show", "-p", &format!("stash@{{{}}}", stash_index)])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash show: {}", e))?;
+
+    if !diff_output.status.success() {
+        let stderr = String::from_utf8_lossy(&diff_output.stderr).to_string();
+        return Err(format!("Error al obtener diff del stash: {}", stderr));
+    }
+
+    let diff_content = String::from_utf8_lossy(&diff_output.stdout);
+    let mut result = Vec::new();
+    let mut current_file = String::new();
+    let mut current_diff = String::new();
+    let mut additions = 0i32;
+    let mut deletions = 0i32;
+
+    for line in diff_content.lines() {
+        if line.starts_with("diff --git ") {
+            if !current_file.is_empty() {
+                result.push(FileDiffInfo {
+                    path: current_file.clone(),
+                    diff: current_diff.clone(),
+                    additions,
+                    deletions,
+                });
+            }
+            current_diff.clear();
+            additions = 0;
+            deletions = 0;
+
+            let path_part = &line["diff --git ".len()..];
+            if path_part.starts_with('"') {
+                if let Some(_end_quote) = path_part[1..].find('"') {
+                    let b_path_marker = format!("\" \"b/");
+                    if let Some(b_idx) = path_part.find(&b_path_marker) {
+                        let b_start = b_idx + b_path_marker.len() - 2;
+                        if let Some(b_end) = path_part[b_start + 1..].find('"') {
+                            current_file = path_part[b_start + 2..b_start + 1 + b_end].to_string();
+                        }
+                    }
+                }
+            } else {
+                if let Some(b_idx) = path_part.rfind(" b/") {
+                    current_file = path_part[b_idx + 3..].to_string();
+                } else {
+                    current_file = path_part.to_string();
+                }
+            }
+
+            current_diff.push_str(line);
+            current_diff.push('\n');
+        } else {
+            if !current_file.is_empty() {
+                if line.starts_with('+') && !line.starts_with("+++") {
+                    additions += 1;
+                } else if line.starts_with('-') && !line.starts_with("---") {
+                    deletions += 1;
+                }
+                current_diff.push_str(line);
+                current_diff.push('\n');
+            }
+        }
+    }
+
+    if !current_file.is_empty() {
+        result.push(FileDiffInfo {
+            path: current_file,
+            diff: current_diff,
+            additions,
+            deletions,
+        });
+    }
+
+    log::info!("Stash diff: {} archivos modificados", result.len());
+    Ok(result)
+}
+
+#[command]
 pub fn save_stash(
     repo_path: String,
     message: Option<String>,
@@ -1230,6 +1312,23 @@ pub fn drop_stash(repo_path: String, stash_id: String) -> Result<String, String>
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         Err(format!("Error al eliminar stash:\n{}", stderr))
+    }
+}
+
+#[command]
+pub fn clear_all_stashes(repo_path: String) -> Result<String, String> {
+    log::warn!("Eliminando TODOS los stashes en: {}", repo_path);
+    let output = create_git_command()
+        .args(["stash", "clear"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error ejecutando git stash clear: {}", e))?;
+
+    if output.status.success() {
+        Ok("Todos los stashes han sido eliminados".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(format!("Error al limpiar stashes:\n{}", stderr))
     }
 }
 

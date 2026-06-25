@@ -9,6 +9,9 @@ interface ConflictMinimapProps {
   onJump: (blockId: string) => void;
 }
 
+const SvgChevronUp = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M3.22 10.53a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8 6.56l-3.72 3.72a.75.75 0 0 1-1.06 0Z"/></svg>;
+const SvgChevronDown = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M12.78 5.47a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 0 1 1.06-1.06L8 9.44l3.72-3.72a.75.75 0 0 1 1.06 0Z"/></svg>;
+
 export function ConflictMinimap({ blocks, totalHeight, scrollTop, containerHeight, onJump }: ConflictMinimapProps) {
   const [currentIdx, setCurrentIdx] = useState(0);
 
@@ -29,19 +32,25 @@ export function ConflictMinimap({ blocks, totalHeight, scrollTop, containerHeigh
     onJump(conflictBlocks[clamped].id);
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-      {/* Botón prev */}
-      <button
-        onClick={() => goTo(currentIdx - 1)}
-        disabled={currentIdx === 0}
-        title="Conflicto anterior"
-        style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: currentIdx === 0 ? 'not-allowed' : 'pointer', opacity: currentIdx === 0 ? 0.3 : 1, fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-      >▲</button>
+  const markerColor = (block: ConflictFileBlock) => {
+    if (!block.resolution || block.resolution === 'pending') return '#f87171';
+    switch (block.resolution) {
+      case 'ours': return '#3dd68c';
+      case 'theirs': return '#f97316';
+      case 'both': return '#a78bfa';
+      default: return '#6b7280';
+    }
+  };
 
-      {/* Minimap barra */}
+  return (
+    <>
+      <button className="cr-mm-nav-btn" onClick={() => goTo(currentIdx - 1)} disabled={currentIdx === 0} title="Conflicto anterior">
+        <SvgChevronUp />
+      </button>
+
       <div
-        style={{ width: '28px', height: `${mapHeight}px`, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', borderRadius: '14px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+        className="cr-mm-bar"
+        style={{ height: mapHeight }}
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const ratio = (e.clientY - rect.top) / mapHeight;
@@ -49,44 +58,32 @@ export function ConflictMinimap({ blocks, totalHeight, scrollTop, containerHeigh
           goTo(idx);
         }}
       >
-        {/* Thumb de scroll */}
-        <div style={{ position: 'absolute', left: '2px', right: '2px', top: `${thumbTop}px`, height: `${thumbHeight}px`, background: 'var(--accent)', borderRadius: '12px', opacity: 0.35, pointerEvents: 'none' }} />
+        <div className="cr-mm-thumb" style={{ top: thumbTop, height: thumbHeight }} />
 
-        {/* Marcadores */}
         {conflictBlocks.map((block, idx) => {
           const pos = conflictBlocks.length === 1 ? 0.5 : idx / (conflictBlocks.length - 1);
           const markerTop = pos * (mapHeight - 6);
           const isPending = !block.resolution || block.resolution === 'pending';
           const isActive = idx === currentIdx;
-          const color = isPending ? '#f87171'
-            : block.resolution === 'ours' ? '#3dd68c'
-              : block.resolution === 'theirs' ? '#f97316'
-                : block.resolution === 'both' ? '#a78bfa'
-                  : '#6b7280';
+          const color = markerColor(block);
 
           return (
             <div
               key={block.id}
-              title={`Conflicto ${idx + 1}: ${isPending ? '⚠️ Pendiente' : '✅ Resuelto'}`}
+              className={`cr-mm-marker${isActive ? ' active' : ''}${isPending ? ' pending' : ' resolved'}`}
+              title={`Conflicto ${idx + 1}: ${isPending ? 'Pendiente' : 'Resuelto'}`}
               onClick={(e) => { e.stopPropagation(); goTo(idx); }}
-              style={{ position: 'absolute', left: '3px', right: '3px', top: `${markerTop}px`, height: isActive ? '6px' : '4px', background: color, borderRadius: '3px', boxShadow: `0 0 ${isActive ? 8 : 4}px ${color}`, opacity: isPending ? 1 : 0.75, cursor: 'pointer', transition: 'all 0.15s' }}
+              style={{ top: markerTop, background: color, boxShadow: `0 0 ${isActive ? 8 : 4}px ${color}` }}
             />
           );
         })}
       </div>
 
-      {/* Contador */}
-      <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textAlign: 'center', lineHeight: 1.2 }}>
-        {currentIdx + 1}/{conflictBlocks.length}
-      </div>
+      <div className="cr-mm-count">{currentIdx + 1}/{conflictBlocks.length}</div>
 
-      {/* Botón next */}
-      <button
-        onClick={() => goTo(currentIdx + 1)}
-        disabled={currentIdx === conflictBlocks.length - 1}
-        title="Siguiente conflicto"
-        style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: currentIdx === conflictBlocks.length - 1 ? 'not-allowed' : 'pointer', opacity: currentIdx === conflictBlocks.length - 1 ? 0.3 : 1, fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-      >▼</button>
-    </div>
+      <button className="cr-mm-nav-btn" onClick={() => goTo(currentIdx + 1)} disabled={currentIdx === conflictBlocks.length - 1} title="Siguiente conflicto">
+        <SvgChevronDown />
+      </button>
+    </>
   );
 }

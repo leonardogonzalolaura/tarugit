@@ -21,6 +21,18 @@ export interface CommitInfo {
   author: string;
 }
 
+export interface FileDiff {
+  path: string;
+  diff: string;
+  additions: number;
+  deletions: number;
+}
 
+export interface StashInfo {
+  index: number;
+  id: string;
+  name: string;
+  message: string;
+}
 
 export type ActivePanel = 'diff' | 'branches' | 'history';
