@@ -63,13 +63,19 @@ function App() {
   const [selectedStash, setSelectedStash] = useState<StashInfo | null>(null);
   const [stashDiffs, setStashDiffs] = useState<FileDiff[]>([]);
   const [stashLoading, setStashLoading] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [sidebarWidth, setSidebarWidth] = useState(350);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const [lastCommitMessage, setLastCommitMessage] = useState('');
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!repoPath) return;
+    invoke<string>('get_last_commit_message', { repoPath }).then(setLastCommitMessage).catch(() => setLastCommitMessage(''));
+  }, [repoPath]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -354,6 +360,7 @@ function App() {
                       defaultAuthorIndex={defaultAuthorIndex}
                       onSetDefaultAuthor={setDefaultAuthorIndex}
                       onDeleteUser={deleteUser}
+                      lastCommitMessage={lastCommitMessage}
                     />
                   </>
                 )}

@@ -69,6 +69,7 @@ pub fn run() {
             commands::git_ops::compare_branches,
             commands::git_ops::create_tag,
             commands::git_ops::delete_tag,
+            commands::git_ops::get_last_commit_message,
             // Watcher commands
             start_repo_watcher,
             stop_repo_watcher,

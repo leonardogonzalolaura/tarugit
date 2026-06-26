@@ -347,6 +347,16 @@ pub fn commit_changes(repo_path: String, message: String, author_name: Option<St
     let is_amend = amend.unwrap_or(false);
     
     if is_amend {
+        let stage = create_git_command()
+            .args(["add", "-A"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git add -A: {}", e))?;
+        if !stage.status.success() {
+            let stderr = String::from_utf8_lossy(&stage.stderr);
+            return Err(format!("Error al stagiar cambios: {}", stderr));
+        }
+
         let mut cmd = create_git_command();
         cmd.args(["commit", "--amend", "-m", &message])
             .current_dir(&repo_path);
@@ -1605,6 +1615,18 @@ pub async fn create_tag(repo_path: String, tag_name: String, message: Option<Str
             let stderr = String::from_utf8_lossy(&output.stderr);
             Err(format!("Error al crear tag: {}", stderr))
         }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+#[command]
+pub async fn get_last_commit_message(repo_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path).map_err(|e| format!("Error abriendo repo: {}", e))?;
+        let head = repo.head().map_err(|_| "No hay commits todavía".to_string())?;
+        let commit = head.peel_to_commit().map_err(|e| format!("Error obteniendo commit: {}", e))?;
+        Ok(commit.message().unwrap_or_default().trim_end().to_string())
     })
     .await
     .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?

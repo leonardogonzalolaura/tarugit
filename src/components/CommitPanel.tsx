@@ -15,6 +15,7 @@ interface CommitPanelProps {
   defaultAuthorIndex?: number;
   onSetDefaultAuthor?: (idx: number) => void;
   onDeleteUser?: (idx: number) => void;
+  lastCommitMessage?: string;
 }
 
 const SvgRocket = () => (
@@ -60,7 +61,13 @@ const SvgTrash = () => (
   </svg>
 );
 
-export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUser, onStashClick, defaultAuthorIndex = 0, onSetDefaultAuthor, onDeleteUser }: CommitPanelProps) {
+const SvgInfo = () => (
+  <svg viewBox="0 0 16 16" width="11" height="11" fill="currentcolor">
+    <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm7.25-2.75a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75ZM7.5 6.5a.75.75 0 0 1 .75-.75h.5a.75.75 0 0 1 .75.75v3.5h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.75V8h-.25a.75.75 0 0 1-.75-.75Z"/>
+  </svg>
+);
+
+export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUser, onStashClick, defaultAuthorIndex = 0, onSetDefaultAuthor, onDeleteUser, lastCommitMessage = '' }: CommitPanelProps) {
   const [message, setMessage] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState<number>(defaultAuthorIndex);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -72,6 +79,14 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
       setSelectedUserIndex(defaultAuthorIndex);
     }
   }, [defaultAuthorIndex, users.length]);
+
+  useEffect(() => {
+    if (amend) {
+      setMessage(lastCommitMessage);
+    } else {
+      setMessage('');
+    }
+  }, [amend]);
 
   if (fileCount === 0) return null;
 
@@ -122,7 +137,6 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
                           {u.name}
                           {idx === defaultAuthorIndex && <span className="cp-default-badge"><SvgStar /></span>}
                         </span>
-                        <span className="cp-dropdown-btn-email">&lt;{u.email}&gt;</span>
                         {selectedUserIndex === idx && <span className="cp-dropdown-check"><SvgCheck /></span>}
                       </button>
                       {onDeleteUser && users.length > 1 && (
@@ -164,13 +178,13 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
         </div>
       </div>
 
-      <label className="cp-amend">
+      <label className="cp-amend" title="Al activar se carga el mensaje del último commit y los archivos modificados pasarán a formar parte de ese commit. Al desactivar se limpia el textarea.">
         <input
           type="checkbox"
           checked={amend}
           onChange={(e) => setAmend(e.target.checked)}
         />
-        <span>Amend</span>
+        <span>Amend <SvgInfo /></span>
       </label>
 
       <div className="cp-actions">
