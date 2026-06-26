@@ -133,6 +133,8 @@ export function BranchSelector({
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dirtyTarget, setDirtyTarget] = useState<string | null>(null);
+  const [confirmDeleteBranch, setConfirmDeleteBranch] = useState<string | null>(null);
+  const [copiedBranch, setCopiedBranch] = useState<string | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showRebaseModal, setShowRebaseModal] = useState(false);
@@ -262,9 +264,11 @@ export function BranchSelector({
       return;
     }
 
-    const confirmDelete = confirm(`¿Eliminar la rama "${branchName}"?\n\nEsta acción no se puede deshacer.`);
-    if (!confirmDelete) return;
+    setConfirmDeleteBranch(branchName);
+  };
 
+  const confirmDelete = async (branchName: string) => {
+    setConfirmDeleteBranch(null);
     setDeleting(branchName);
     try {
       await invoke('delete_branch', { repoPath, branchName });
@@ -427,6 +431,31 @@ export function BranchSelector({
     );
   };
 
+  const renderDeleteConfirmModal = () => {
+    if (!confirmDeleteBranch) return null;
+    return (
+      <div className="confirm-overlay" onClick={() => setConfirmDeleteBranch(null)}>
+        <div className="confirm-box" onClick={e => e.stopPropagation()}>
+          <h3 className="confirm-title confirm-title--danger">Eliminar rama</h3>
+          <p className="confirm-body">
+            ¿Estás seguro de eliminar la rama <strong>"{confirmDeleteBranch}"</strong>? Esta acción no se puede deshacer.
+          </p>
+          <div className="confirm-actions">
+            <button className="btn-secondary" onClick={() => setConfirmDeleteBranch(null)}>Cancelar</button>
+            <button
+              className="btn-primary"
+              style={{ background: 'var(--red)', borderColor: 'var(--red)', color: '#fff' }}
+              onClick={() => confirmDelete(confirmDeleteBranch)}
+              disabled={deleting !== null}
+            >
+              {deleting ? <span className="spinner-sm" /> : null} Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderBranchRow = (branch: BranchInfo) => {
     const isCurrent = branch.name === currentBranch;
     return (
@@ -459,13 +488,21 @@ export function BranchSelector({
             onClick={(e) => {
               e.stopPropagation();
               navigator.clipboard.writeText(branch.name);
+              setCopiedBranch(branch.name);
+              setTimeout(() => setCopiedBranch(null), 1500);
             }}
             title="Copiar nombre de rama"
           >
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-              <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
-              <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
-            </svg>
+            {copiedBranch === branch.name ? (
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="var(--green)">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.042-1.018.751.751 0 0 1 .018 1.042L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
+                <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
+              </svg>
+            )}
           </button>
           {!isCurrent && !branch.is_remote && (
             <>
@@ -504,7 +541,9 @@ export function BranchSelector({
                 title="Eliminar rama"
                 disabled={deleting === branch.name || isOperating}
               >
-                🗑️
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                  <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1 0-1.5H5V1.75A1.75 1.75 0 0 1 6.75 0h2.5A1.75 1.75 0 0 1 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.75 1.75 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15Z"/>
+                </svg>
               </button>
             </>
           )}
@@ -515,6 +554,7 @@ export function BranchSelector({
 
   return (
     <>
+      {renderDeleteConfirmModal()}
       {renderDirtyModal()}
       {renderMergeModal()}
       {renderRebaseModal()}
