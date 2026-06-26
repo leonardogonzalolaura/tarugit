@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { BranchInfo } from '../types';
 import { CompareBranchesModal } from './CompareBranchesModal';
+import { CreateBranchModal, getBranchIcon } from './CreateBranchModal';
 
 interface BranchSelectorProps {
   repoPath: string;
@@ -10,113 +11,6 @@ interface BranchSelectorProps {
   hasUncommittedChanges: boolean;
   onBranchSwitch: () => void;
   onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
-}
-
-//type DirtyAction = 'carry' | 'cancel';
-
-interface CreateBranchModalProps {
-  branches: BranchInfo[];
-  currentBranch: string;
-  onCreate: (branchName: string, sourceBranch: string) => void;
-  onClose: () => void;
-}
-
-function CreateBranchModal({ branches, currentBranch, onCreate, onClose }: CreateBranchModalProps) {
-  const [branchName, setBranchName] = useState('');
-  const [sourceBranch, setSourceBranch] = useState(currentBranch);
-  const [creating, setCreating] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!branchName.trim()) return;
-    setCreating(true);
-    try {
-      await onCreate(branchName.trim(), sourceBranch);
-      onClose();
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const localBranches = branches.filter(b => !b.is_remote && b.name !== sourceBranch);
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: '460px' }} onClick={e => e.stopPropagation()}>
-        <div className="modal-icon">🌿</div>
-        <h3 className="modal-title">Crear Nueva Rama</h3>
-        <p className="modal-desc">Crea una rama a partir de otra existente:</p>
-
-        <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div>
-            <label style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>
-              Nombre de la nueva rama
-            </label>
-            <input
-              ref={inputRef}
-              className="repo-input"
-              style={{ margin: 0, width: '100%' }}
-              placeholder="feature/nueva-funcionalidad"
-              value={branchName}
-              onChange={e => setBranchName(e.target.value)}
-              disabled={creating}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '5px' }}>
-              Crear desde la rama
-            </label>
-            <select
-              value={sourceBranch}
-              onChange={e => setSourceBranch(e.target.value)}
-              disabled={creating}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-                background: 'var(--bg-base)',
-                color: 'var(--text-primary)',
-                fontSize: '12px',
-                fontFamily: 'var(--font-mono)',
-                cursor: 'pointer',
-              }}
-            >
-              <option value={currentBranch}>{currentBranch} (actual)</option>
-              {localBranches.map(branch => (
-                <option key={branch.name} value={branch.name}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="modal-actions" style={{ marginTop: '4px' }}>
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={creating}>
-              Cancelar
-            </button>
-            <button type="submit" className="btn-primary" disabled={creating || !branchName.trim()}>
-              {creating ? <span className="spinner-sm" style={{ marginRight: '6px' }} /> : '✨'} Crear Rama
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 export function BranchSelector({ 
@@ -465,10 +359,13 @@ export function BranchSelector({
           onClick={() => handleSwitch(branch.name)}
         >
           <div className="branch-selector-item-info">
-            <span className="branch-selector-item-icon">
-              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.5 2.5 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
-              </svg>
+            <span className="branch-selector-item-icon" style={{
+              color: branch.name.startsWith('feature/') ? 'var(--accent)'
+                : branch.name.startsWith('fix/') ? 'var(--green)'
+                : branch.name.startsWith('hotfix/') ? 'var(--red)'
+                : undefined
+            }}>
+              {getBranchIcon(branch.name)}
             </span>
             <span className="branch-selector-item-name">
               {branch.name}
