@@ -40,7 +40,7 @@ function App() {
   const {
     users, showUserModal, newUserName, newUserEmail,
     setShowUserModal, setNewUserName, setNewUserEmail,
-    handleAddUser, saveNewUser,
+    handleAddUser, saveNewUser, defaultAuthorIndex, setDefaultAuthorIndex, deleteUser,
   } = useUsers();
 
   const {
@@ -351,6 +351,9 @@ function App() {
                       users={users}
                       onAddUser={handleAddUser}
                       onStashClick={() => setShowStashModal(true)}
+                      defaultAuthorIndex={defaultAuthorIndex}
+                      onSetDefaultAuthor={setDefaultAuthorIndex}
+                      onDeleteUser={deleteUser}
                     />
                   </>
                 )}

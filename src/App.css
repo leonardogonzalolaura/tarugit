@@ -1202,41 +1202,160 @@ html, body, #root {
 .fd-hl-spacer { width: 20px; flex-shrink: 0; }
 
 /* ─── Commit Panel ────────────────────────────────────────────────────────── */
+/* ─── Commit Panel (cp-*) ─────────────────────────────────── */
 .commit-panel {
   padding: 10px;
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
 }
-
-.commit-header {
+.cp-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  gap: 6px;
 }
-
-.commit-title {
+.cp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cp-title {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: .5px;
 }
-
-.commit-count {
+.cp-count {
   font-size: 10px;
   background: var(--yellow-bg);
   color: var(--yellow);
-  padding: 2px 7px;
-  border-radius: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
   font-weight: 600;
 }
-
-.commit-input-wrap { position: relative; margin-bottom: 8px; }
-
-.commit-input {
+.cp-author {
+  position: relative;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.cp-author-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 160px;
+  transition: border-color .15s;
+}
+.cp-author-btn:hover { border-color: var(--accent); }
+.cp-author-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.cp-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+}
+.cp-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 200px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 999;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+.cp-dropdown-item {
+  display: flex;
+  align-items: center;
+}
+.cp-dropdown-item:not(:last-child) .cp-dropdown-btn {
+  border-bottom: 1px solid var(--border);
+}
+.cp-dropdown-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  text-align: left;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  transition: background .15s;
+}
+.cp-dropdown-btn:hover { background: var(--bg-hover); }
+.cp-dropdown-btn--active { color: var(--accent); }
+.cp-dropdown-btn-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+.cp-dropdown-btn-email {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.cp-dropdown-check {
+  margin-left: auto;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.cp-dropdown-del {
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.cp-dropdown-del:hover { color: var(--red); }
+.cp-default-badge {
+  display: inline-flex;
+  color: var(--yellow);
+}
+.cp-dropdown-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2px 0;
+}
+.cp-dropdown-add {
   width: 100%;
-  padding: 8px 10px;
+  padding: 6px 10px;
+  text-align: left;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  transition: background .15s;
+}
+.cp-dropdown-add:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.cp-input-wrap { position: relative; }
+
+.cp-input {
+  width: 100%;
+  padding: 7px 9px;
   background: var(--bg-base);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
@@ -1244,21 +1363,78 @@ html, body, #root {
   font-family: var(--font-sans);
   font-size: 12px;
   resize: vertical;
-  min-height: 64px;
+  min-height: 56px;
+  box-sizing: border-box;
 }
+.cp-input:focus { outline: none; border-color: var(--accent); }
 
-.commit-input:focus { outline: none; border-color: var(--accent); }
-
-.commit-char-count {
+.cp-charcount {
   position: absolute;
-  bottom: 6px;
-  right: 8px;
+  bottom: 5px;
+  right: 7px;
+  font-size: 9px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.cp-charcount--over { color: var(--red); }
+
+.cp-amend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 10px;
   color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 0 2px;
+  user-select: none;
 }
+.cp-amend input { accent-color: var(--accent); }
+
+.cp-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cp-btn-commit {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity .15s;
+  font-family: var(--font-sans);
+}
+.cp-btn-commit:hover:not(:disabled) { opacity: .9; }
+.cp-btn-commit:disabled { opacity: .5; cursor: default; }
+
+.cp-btn-stash {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+.cp-btn-stash:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.cp-btn-stash:disabled { opacity: .5; cursor: default; }
 
 /* ─── Buttons ─────────────────────────────────────────────────────────────── */
-.btn-primary, .btn-secondary, .btn-success, .btn-commit {
+.btn-primary, .btn-secondary, .btn-success {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1294,15 +1470,6 @@ html, body, #root {
   border: 1px solid var(--green-border);
   width: 100%;
   justify-content: center;
-}
-
-.btn-commit {
-  width: 100%;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--accent), #a855f7);
-  color: #fff;
-  padding: 9px;
-  font-size: 13px;
 }
 
 .btn-icon {
@@ -3049,63 +3216,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   justify-content: flex-end;
 }
 
-/* ── User Dropdown (CommitPanel) ──────────────────────────── */
-.user-dropdown-wrapper {
-  position: relative;
-}
 
-.user-dropdown-btn {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.user-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  z-index: 999;
-  overflow: hidden;
-}
-
-.user-dropdown-item {
-  width: 100%;
-  padding: 8px 12px;
-  text-align: left;
-  color: var(--text-primary);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background 0.15s;
-}
-.user-dropdown-item:hover { background: var(--bg-hover); }
-.user-dropdown-item--active { background: var(--accent); color: #fff; }
-.user-dropdown-item--add { color: var(--text-muted); }
-.user-dropdown-item--add:hover { background: var(--bg-hover); }
-
-/* ── Commit user label ────────────────────────────────────── */
-.commit-user-label {
-  font-size: 11px;
-  margin-bottom: 6px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
 /* ─── Conflict Resolver (cr-*) ───────────────────────────────────────────── */
 .cr {
@@ -3541,6 +3652,35 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 
 /* ─── Create Branch Modal ─────────────────────────────────── */
+.cbm {
+  padding: 20px 22px !important;
+  gap: 10px !important;
+  text-align: left !important;
+  max-width: 440px;
+}
+.cbm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.cbm-header-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--accent-glow);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.cbm-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
 .cbm-label {
   font-size: 10px;
   font-weight: 600;
@@ -3548,7 +3688,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   text-transform: uppercase;
   letter-spacing: .5px;
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 .cbm-types {
   display: flex;
