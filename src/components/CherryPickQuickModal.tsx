@@ -87,6 +87,8 @@ export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefre
       if (!applying && selectedCommits.size > 0 && targetBranch) {
         handleApply();
       }
+    } else if (e.key === 'Escape') {
+      onClose();
     }
   };
 

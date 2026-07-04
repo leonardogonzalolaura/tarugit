@@ -12,6 +12,7 @@ const shortcuts: ShortcutItem[] = [
   { keys: 'Ctrl + Shift + Tab', label: 'Pestaña anterior' },
   { keys: 'Ctrl + B', label: 'Colapsar/expandir barra lateral' },
   { keys: 'Ctrl + P', label: 'Buscador de repositorios' },
+  { keys: 'Ctrl + S', label: 'Abrir modal de sincronización' },
   { keys: 'Ctrl + E', label: 'Cherry-pick rápido' },
   { keys: 'Ctrl + Shift + D', label: 'Comparar ramas' },
   { keys: 'Ctrl + ?', label: 'Mostrar esta ayuda' },

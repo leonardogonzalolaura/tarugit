@@ -24,6 +24,7 @@ import { UserModal } from './components/UserModal';
 import { QuickRepoModal } from './components/QuickRepoModal';
 import { CherryPickQuickModal } from './components/CherryPickQuickModal';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
+import { SyncModal } from './components/SyncModal';
 import { useRepository } from './hooks/useRepository';
 import { useUsers } from './hooks/useUsers';
 import { useStash } from './hooks/useStash';
@@ -73,6 +74,7 @@ function App() {
   const [showQuickRepo, setShowQuickRepo] = useState(false);
   const [showCherryQuick, setShowCherryQuick] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
@@ -237,6 +239,7 @@ function App() {
     { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : 'changes'; }) },
     { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'tags'; return t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'tags'; }) },
     { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },
+    { key: 's', ctrl: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
     { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
     { key: '/', ctrl: true, handler: () => setShowShortcutHelp(v => !v) },
   ]);
@@ -548,6 +551,15 @@ function App() {
 
         {showShortcutHelp && (
           <ShortcutHelpModal onClose={() => setShowShortcutHelp(false)} />
+        )}
+
+        {showSyncModal && repoPath && repoInfo?.current_branch && (
+          <SyncModal
+            repoPath={repoPath}
+            currentBranch={repoInfo.current_branch}
+            onClose={() => setShowSyncModal(false)}
+            onRefresh={refreshAll}
+          />
         )}
 
         {confirmAction && (
