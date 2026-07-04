@@ -1,30 +1,32 @@
 import { useEffect } from 'react';
 
-interface ShortcutMap {
-  [key: string]: () => void;
+export interface ShortcutDef {
+  key: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  handler: () => void;
 }
 
-export function useKeyboardShortcuts(shortcuts: ShortcutMap) {
+export function useKeyboardShortcuts(shortcuts: ShortcutDef[], deps: React.DependencyList = []) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const key: string[] = [];
-      if (e.ctrlKey || e.metaKey) key.push('Ctrl');
-      if (e.shiftKey) key.push('Shift');
-      if (e.altKey) key.push('Alt');
-      key.push(e.key.toLowerCase());
+    const onKeyDown = (e: KeyboardEvent) => {
+      for (const s of shortcuts) {
+        const ctrlMatch = s.ctrl ? (e.ctrlKey || e.metaKey) : true;
+        const shiftMatch = s.shift ? e.shiftKey : !e.shiftKey;
+        const altMatch = s.alt ? e.altKey : !e.altKey;
+        const keyMatch = e.key.toLowerCase() === s.key.toLowerCase();
 
-      const combo = key.join('+');
-
-      for (const [shortcut, action] of Object.entries(shortcuts)) {
-        if (combo === shortcut.toLowerCase()) {
+        if (ctrlMatch && shiftMatch && altMatch && keyMatch) {
           e.preventDefault();
-          action();
+          e.stopPropagation();
+          s.handler();
           return;
         }
       }
     };
 
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [shortcuts]);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [shortcuts, ...deps]);
 }

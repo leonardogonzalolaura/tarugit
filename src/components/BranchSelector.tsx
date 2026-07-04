@@ -52,6 +52,12 @@ export function BranchSelector({
   }, [isOpen, repoPath]);
 
   useEffect(() => {
+    const h = () => { if (repoPath) { loadBranches(); setShowCompareModal(true); } };
+    window.addEventListener('open-compare-branches', h);
+    return () => window.removeEventListener('open-compare-branches', h);
+  }, [repoPath]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);

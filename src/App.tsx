@@ -21,6 +21,9 @@ import { TagPanel } from './components/TagPanel';
 import { ToastContainer, toast } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UserModal } from './components/UserModal';
+import { QuickRepoModal } from './components/QuickRepoModal';
+import { CherryPickQuickModal } from './components/CherryPickQuickModal';
+import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { useRepository } from './hooks/useRepository';
 import { useUsers } from './hooks/useUsers';
 import { useStash } from './hooks/useStash';
@@ -67,6 +70,9 @@ function App() {
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [lastCommitMessage, setLastCommitMessage] = useState('');
+  const [showQuickRepo, setShowQuickRepo] = useState(false);
+  const [showCherryQuick, setShowCherryQuick] = useState(false);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
@@ -221,13 +227,19 @@ function App() {
     setShowCloneModal(false);
   }, [cloneRepo]);
 
-  useKeyboardShortcuts({
-    'ctrl+b': () => setSidebarCollapsed(v => !v),
-    'ctrl+1': () => setLeftTab('changes'),
-    'ctrl+2': () => setLeftTab('history'),
-    'ctrl+3': () => setLeftTab('stash'),
-    'ctrl+4': () => setLeftTab('tags'),
-  });
+  useKeyboardShortcuts([
+    { key: 'b', ctrl: true, handler: () => setSidebarCollapsed(v => !v) },
+    { key: '1', ctrl: true, handler: () => setLeftTab('changes') },
+    { key: '2', ctrl: true, handler: () => setLeftTab('history') },
+    { key: '3', ctrl: true, handler: () => setLeftTab('stash') },
+    { key: '4', ctrl: true, handler: () => setLeftTab('tags') },
+    { key: 'p', ctrl: true, handler: () => setShowQuickRepo(v => !v) },
+    { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : 'changes'; }) },
+    { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'tags'; return t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'tags'; }) },
+    { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },
+    { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
+    { key: '/', ctrl: true, handler: () => setShowShortcutHelp(v => !v) },
+  ]);
 
   return (
     <ErrorBoundary>
@@ -514,6 +526,28 @@ function App() {
             filePath={fileHistoryPath}
             onClose={() => setFileHistoryPath(null)}
           />
+        )}
+
+        {showQuickRepo && (
+          <QuickRepoModal
+            repos={savedRepos}
+            activeRepoPath={repoPath}
+            onSelect={(path) => { openRepoWithReset(path); setShowQuickRepo(false); }}
+            onClose={() => setShowQuickRepo(false)}
+          />
+        )}
+
+        {showCherryQuick && repoPath && (
+          <CherryPickQuickModal
+            repoPath={repoPath}
+            currentBranch={repoInfo?.current_branch}
+            onClose={() => setShowCherryQuick(false)}
+            onRefresh={refreshAll}
+          />
+        )}
+
+        {showShortcutHelp && (
+          <ShortcutHelpModal onClose={() => setShowShortcutHelp(false)} />
         )}
 
         {confirmAction && (
