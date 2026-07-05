@@ -58,6 +58,12 @@ export function BranchSelector({
   }, [repoPath]);
 
   useEffect(() => {
+    const h = () => { if (repoPath) { loadBranches(); setShowCreateForm(true); } };
+    window.addEventListener('create-branch', h);
+    return () => window.removeEventListener('create-branch', h);
+  }, [repoPath]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);

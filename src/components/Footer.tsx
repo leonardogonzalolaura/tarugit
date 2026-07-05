@@ -4,9 +4,10 @@ interface FooterProps {
   repoPath: string;
   currentBranch?: string;
   fileCount?: number;
+  onOpenShortcuts?: () => void;
 }
 
-export function Footer({ repoPath, currentBranch, fileCount = 0 }: FooterProps) {
+export function Footer({ repoPath, currentBranch, fileCount = 0, onOpenShortcuts }: FooterProps) {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -68,8 +69,26 @@ export function Footer({ repoPath, currentBranch, fileCount = 0 }: FooterProps) 
         <span className="footer-git-version">v0.1.7</span>
       </div>
 
-      {/* Derecha: fecha y hora */}
+      {/* Derecha: atajos, fecha y hora */}
       <div className="footer-section footer-right">
+        {onOpenShortcuts && (
+          <>
+            <button
+              className="footer-item footer-shortcuts-btn"
+              onClick={onOpenShortcuts}
+              title="Atajos de teclado (Ctrl+?)"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+                font: 'inherit', color: 'inherit',
+              }}
+            >
+              <span className="footer-icon">⌨</span>
+              <span style={{ fontSize: 10, opacity: 0.7 }}>Ctrl+?</span>
+            </button>
+            <span className="footer-separator">·</span>
+          </>
+        )}
         <span className="footer-item footer-time">
           <span className="footer-icon">🕐</span>
           <span className="footer-time-val">{timeStr}</span>

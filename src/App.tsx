@@ -231,6 +231,7 @@ function App() {
 
   useKeyboardShortcuts([
     { key: 'b', ctrl: true, handler: () => setSidebarCollapsed(v => !v) },
+    { key: 'b', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('create-branch')); } },
     { key: '1', ctrl: true, handler: () => setLeftTab('changes') },
     { key: '2', ctrl: true, handler: () => setLeftTab('history') },
     { key: '3', ctrl: true, handler: () => setLeftTab('stash') },
@@ -579,6 +580,7 @@ function App() {
           repoPath={repoPath}
           currentBranch={repoInfo?.current_branch}
           fileCount={repoInfo?.files?.length ?? 0}
+          onOpenShortcuts={() => setShowShortcutHelp(true)}
         />
       </div>
     </ErrorBoundary>

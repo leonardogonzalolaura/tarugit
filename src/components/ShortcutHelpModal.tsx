@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 interface ShortcutItem {
   keys: string;
   label: string;
@@ -11,6 +13,7 @@ const shortcuts: ShortcutItem[] = [
   { keys: 'Ctrl + Tab', label: 'Siguiente pestaña' },
   { keys: 'Ctrl + Shift + Tab', label: 'Pestaña anterior' },
   { keys: 'Ctrl + B', label: 'Colapsar/expandir barra lateral' },
+  { keys: 'Ctrl + Shift + B', label: 'Crear rama' },
   { keys: 'Ctrl + P', label: 'Buscador de repositorios' },
   { keys: 'Ctrl + S', label: 'Abrir modal de sincronización' },
   { keys: 'Ctrl + E', label: 'Cherry-pick rápido' },
@@ -23,6 +26,12 @@ interface ShortcutHelpModalProps {
 }
 
 export function ShortcutHelpModal({ onClose }: ShortcutHelpModalProps) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, maxHeight: '80vh' }}>
