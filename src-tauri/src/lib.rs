@@ -83,6 +83,15 @@ pub fn run() {
             commands::github_ops::list_workflow_runs,
             commands::github_ops::get_workflow_run_jobs,
             commands::github_ops::get_github_remote_info,
+            // Pull Requests
+            commands::github_ops::list_pull_requests,
+            commands::github_ops::get_pull_request,
+            commands::github_ops::get_pull_request_files,
+            commands::github_ops::get_pull_request_commits,
+            commands::github_ops::create_pull_request,
+            commands::github_ops::merge_pull_request,
+            commands::github_ops::update_pull_request,
+            commands::github_ops::check_pr_readiness,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

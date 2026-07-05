@@ -510,13 +510,31 @@ pub fn get_commit_diff(repo_path: String, commit_id: String) -> Result<String, S
 #[command]
 pub fn get_commit_diff_structured(repo_path: String, commit_id: String) -> Result<Vec<FileDiffInfo>, String> {
     log::info!("Obteniendo diff estructurado del commit: {}", commit_id);
-    
-    // Run a single git command to get all diffs instead of spawning a process per file
-    let diff_output = create_git_command()
-        .args(["show", "--format=", "--unified=3", &commit_id])
+
+    // Check if merge commit (has >1 parent)
+    let parents_output = create_git_command()
+        .args(["rev-list", "--parents", "-1", &commit_id])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Error ejecutando git show: {}", e))?;
+        .map_err(|e| format!("Error checking parents: {}", e))?;
+    let parents_str = String::from_utf8_lossy(&parents_output.stdout);
+    let parent_count = parents_str.trim().split_whitespace().count().saturating_sub(1);
+
+    // For merge commits, use diff against the first parent (three-dot range shows branch changes)
+    // For regular commits, use git show
+    let diff_output = if parent_count > 1 {
+        create_git_command()
+            .args(["diff", "--unified=3", &format!("{}^1", commit_id), &commit_id])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git diff para merge: {}", e))?
+    } else {
+        create_git_command()
+            .args(["show", "--format=", "--unified=3", &commit_id])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git show: {}", e))?
+    };
         
     let diff_content = String::from_utf8_lossy(&diff_output.stdout);
     

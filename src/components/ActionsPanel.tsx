@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FileDiff } from '../types';
+import { PullRequestsPanel } from './PullRequestsPanel';
 
 interface WorkflowRun {
   id: number;
@@ -91,9 +92,17 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
   const [page, setPage] = useState(0);
   const [expandedJobsSet, setExpandedJobsSet] = useState<Set<number>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [activeTab, setActiveTab] = useState<'runs' | 'pulls'>('runs');
   const [commitModalSha, setCommitModalSha] = useState<string | null>(null);
   const [commitModalFiles, setCommitModalFiles] = useState<FileDiff[]>([]);
   const [commitModalLoading, setCommitModalLoading] = useState(false);
+
+  useEffect(() => {
+    if (!commitModalSha) return;
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setCommitModalSha(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [commitModalSha]);
 
   const hasInProgress = runs.some(r => r.status === 'in_progress' || r.status === 'queued' || r.status === 'pending');
 
@@ -248,15 +257,24 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
   return (
     <div className="actions-panel">
       <div className="actions-header">
-        <div className="actions-title">
-          <span>⚡ Actions</span>
-          {remoteInfo && <span className="actions-remote">{remoteInfo}</span>}
+        <div className="actions-tabs">
+          <button
+            className={`actions-tab${activeTab === 'runs' ? ' active' : ''}`}
+            onClick={() => setActiveTab('runs')}
+          >⚡ Runs</button>
+          <button
+            className={`actions-tab${activeTab === 'pulls' ? ' active' : ''}`}
+            onClick={() => setActiveTab('pulls')}
+          >🔀 PRs</button>
+          {remoteInfo && <span className="actions-remote" style={{ marginLeft: 8 }}>{remoteInfo}</span>}
         </div>
         <div className="actions-header-actions">
-          <button className="btn-edit" onClick={() => fetchRuns(token)} title="Actualizar"
-            style={{ padding: '4px 8px', fontSize: 13 }}>
-            ↻
-          </button>
+          {activeTab === 'runs' && (
+            <button className="btn-edit" onClick={() => fetchRuns(token)} title="Actualizar"
+              style={{ padding: '4px 8px', fontSize: 13 }}>
+              ↻
+            </button>
+          )}
           <button className="btn-edit" onClick={handleClearToken} title="Cambiar token"
             style={{ padding: '4px 8px', fontSize: 13 }}>
             🔑
@@ -264,6 +282,15 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
         </div>
       </div>
 
+      {activeTab === 'pulls' ? (
+        <PullRequestsPanel
+          repoPath={repoPath}
+          token={token}
+          currentBranch={currentBranch}
+          remoteInfo={remoteInfo}
+        />
+      ) : (
+        <>
       {error && (
         <div className="actions-error">
           <span>⚠ {error}</span>
@@ -441,6 +468,9 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
           </div>
         </div>
       )}
+        </>
+      )}
+
     </div>
   );
 }
