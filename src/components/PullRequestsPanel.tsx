@@ -92,6 +92,14 @@ export function PullRequestsPanel({ repoPath, token, currentBranch, remoteInfo }
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [merging, setMerging] = useState(false);
   const [showMergeMenu, setShowMergeMenu] = useState<number | null>(null);
+  const [editingField, setEditingField] = useState<'title' | 'body' | null>(null);
+  const [editTitleValue, setEditTitleValue] = useState('');
+  const [editBodyValue, setEditBodyValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const SvgPencil = () => <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+    <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L3.88 10.68a.25.25 0 0 0-.064.108l-.558 1.953 1.953-.558a.25.25 0 0 0 .108-.064l8.193-8.193a.25.25 0 0 0 0-.354l-1.086-1.086Z"/>
+  </svg>;
 
   const fetchPrs = useCallback(async () => {
     if (!token) return;
@@ -122,6 +130,7 @@ export function PullRequestsPanel({ repoPath, token, currentBranch, remoteInfo }
       return;
     }
     setExpandedPr(pr.number);
+    setEditingField(null);
     setPrDetailTab('files');
     setPrDetailLoading(true);
     try {
@@ -160,11 +169,45 @@ export function PullRequestsPanel({ repoPath, token, currentBranch, remoteInfo }
 
   const handleUpdateState = async (prNumber: number, state: string) => {
     try {
-      await invoke('update_pull_request', { repoPath, token, number: prNumber, state });
+      await invoke('update_pull_request', { repoPath, token, number: prNumber, state, title: null, body: null });
       await fetchPrs();
       setExpandedPr(null);
     } catch (e) {
       setError(String(e));
+    }
+  };
+
+  const handleEditField = (pr: PullRequest, field: 'title' | 'body') => {
+    setEditingField(field);
+    if (field === 'title') setEditTitleValue(pr.title);
+    else setEditBodyValue(pr.body ?? '');
+  };
+
+  const handleCancelField = () => {
+    setEditingField(null);
+    setEditTitleValue('');
+    setEditBodyValue('');
+  };
+
+  const handleSaveField = async (prNumber: number, field: 'title' | 'body') => {
+    setSaving(true);
+    try {
+      const title = field === 'title' ? editTitleValue : null;
+      const body = field === 'body' ? editBodyValue : null;
+      await invoke('update_pull_request', {
+        repoPath, token, number: prNumber, state: 'open',
+        title, body,
+      });
+      setPrs(prev => prev.map(p => p.number === prNumber ? {
+        ...p,
+        ...(field === 'title' ? { title: editTitleValue } : {}),
+        ...(field === 'body' ? { body: editBodyValue } : {}),
+      } : p));
+      setEditingField(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -295,11 +338,111 @@ export function PullRequestsPanel({ repoPath, token, currentBranch, remoteInfo }
                       <div className="actions-loading" style={{ padding: 16 }}><span className="spinner" /> Cargando...</div>
                     ) : (
                       <>
-                        {pr.body && (
-                          <div className="pr-detail-body">
-                            <div className="pr-detail-body-text">{pr.body}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                          {editingField === 'title' ? (
+                            <input
+                              type="text"
+                              value={editTitleValue}
+                              onChange={e => setEditTitleValue(e.target.value)}
+                              style={{
+                                flex: 1, fontSize: 14, fontWeight: 600,
+                                color: 'var(--text-primary)',
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 4, padding: '4px 6px',
+                                fontFamily: 'inherit',
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 14, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {pr.title}
+                            </span>
+                          )}
+                          {pr.state === 'open' && editingField !== 'title' && (
+                            <button
+                              onClick={() => handleEditField(pr, 'title')}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: 'var(--text-muted)', padding: '2px', display: 'flex',
+                                flexShrink: 0, transition: 'color .15s', lineHeight: 1,
+                              }}
+                              onMouseOver={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                              onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                              title="Editar título"
+                            >
+                              <SvgPencil />
+                            </button>
+                          )}
+                        </div>
+                        {editingField === 'title' && (
+                          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                            <button className="btn-primary" onClick={() => handleSaveField(pr.number, 'title')}
+                              disabled={saving || !editTitleValue.trim()}
+                              style={{ fontSize: 10, padding: '3px 8px' }}>
+                              {saving ? '...' : 'Guardar'}
+                            </button>
+                            <button className="btn-secondary" onClick={handleCancelField}
+                              style={{ fontSize: 10, padding: '3px 8px' }}>
+                              Cancelar
+                            </button>
                           </div>
                         )}
+
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 10 }}>
+                          {editingField === 'body' ? (
+                            <textarea
+                              value={editBodyValue}
+                              onChange={e => setEditBodyValue(e.target.value)}
+                              rows={4}
+                              style={{
+                                flex: 1, fontSize: 12, lineHeight: 1.6,
+                                color: 'var(--text-secondary)',
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 4, padding: '4px 6px',
+                                fontFamily: 'inherit', resize: 'vertical',
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            />
+                          ) : pr.body ? (
+                            <div className="pr-detail-body" style={{ flex: 1, minWidth: 0 }}>
+                              <div className="pr-detail-body-text">{pr.body}</div>
+                            </div>
+                          ) : (
+                            <div style={{ flex: 1, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              Sin descripción
+                            </div>
+                          )}
+                          {pr.state === 'open' && editingField !== 'body' && (
+                            <button
+                              onClick={() => handleEditField(pr, 'body')}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: 'var(--text-muted)', padding: '2px', display: 'flex',
+                                flexShrink: 0, marginTop: 2, transition: 'color .15s', lineHeight: 1,
+                              }}
+                              onMouseOver={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                              onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                              title="Editar descripción"
+                            >
+                              <SvgPencil />
+                            </button>
+                          )}
+                        </div>
+                        {editingField === 'body' && (
+                          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                            <button className="btn-primary" onClick={() => handleSaveField(pr.number, 'body')}
+                              disabled={saving}
+                              style={{ fontSize: 10, padding: '3px 8px' }}>
+                              {saving ? '...' : 'Guardar'}
+                            </button>
+                            <button className="btn-secondary" onClick={handleCancelField}
+                              style={{ fontSize: 10, padding: '3px 8px' }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        )}
+
                         <div className="pr-detail-tabs">
                           <button
                             className={`pr-detail-tab${prDetailTab === 'files' ? ' active' : ''}`}

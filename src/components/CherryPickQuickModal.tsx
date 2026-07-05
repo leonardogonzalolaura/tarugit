@@ -17,6 +17,72 @@ interface CherryPickQuickModalProps {
   onRefresh?: () => void;
 }
 
+function BranchCombo({ branches, value, onChange }: {
+  branches: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [hl, setHl] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const filtered = filter
+    ? branches.filter(b => b.toLowerCase().includes(filter.toLowerCase()))
+    : branches;
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  return (
+    <div style={{ flex: 1, position: 'relative', minWidth: 0 }} ref={ref}>
+      <div
+        className="pr-combo-trigger"
+        onClick={() => { setOpen(v => !v); setFilter(''); setHl(0); }}
+      >
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{value || 'Seleccionar...'}</span>
+        <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>▼</span>
+      </div>
+      {open && (
+        <div className="pr-combo-dropdown" style={{ top: 'auto', bottom: '100%', marginTop: 0, marginBottom: 4 }} >
+          <input
+            className="pr-combo-search"
+            placeholder="Filtrar ramas..."
+            value={filter}
+            autoFocus
+            onChange={e => { setFilter(e.target.value); setHl(0); }}
+            onKeyDown={e => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setHl(i => Math.min(i + 1, filtered.length - 1)); }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setHl(i => Math.max(i - 1, 0)); }
+              if (e.key === 'Enter' && filtered[hl]) { onChange(filtered[hl]); setOpen(false); }
+              if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); }
+            }}
+          />
+          <div className="pr-combo-list">
+            {filtered.length === 0 ? (
+              <div className="pr-combo-empty">Sin resultados</div>
+            ) : (
+              filtered.map((b, i) => (
+                <div
+                  key={b}
+                  className={`pr-combo-item${i === hl ? ' hl' : ''}${b === value ? ' selected' : ''}`}
+                  onClick={() => { onChange(b); setOpen(false); }}
+                  onMouseEnter={() => setHl(i)}
+                >{b}</div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefresh }: CherryPickQuickModalProps) {
   const [commits, setCommits] = useState<CommitEntry[]>([]);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
@@ -27,6 +93,7 @@ export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefre
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     Promise.all([
@@ -46,7 +113,11 @@ export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefre
   }, [repoPath]);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    if (inputRef.current) {
+      inputRef.current.focus();
+    } else {
+      modalRef.current?.focus();
+    }
   }, []);
 
   useEffect(() => {
@@ -140,9 +211,11 @@ export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefre
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
+        tabIndex={-1}
+        ref={modalRef}
         onClick={e => e.stopPropagation()}
         onKeyDown={handleKeyDown}
-        style={{ maxWidth: 560, padding: 0, overflow: 'hidden', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+        style={{ maxWidth: 560, padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px 8px', borderBottom: '1px solid var(--border)' }}>
           <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>🍒 Cherry-Pick Rápido</h3>
@@ -203,31 +276,22 @@ export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefre
           )}
         </div>
 
-        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Rama destino:</label>
-            <select
+        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>Destino:</label>
+            <BranchCombo
+              branches={localBranches.map(b => b.name)}
               value={targetBranch}
-              onChange={e => setTargetBranch(e.target.value)}
-              style={{
-                flex: 1, padding: '5px 8px', fontSize: 12, borderRadius: 4,
-                border: '1px solid var(--border)', background: 'var(--bg-base)',
-                color: 'var(--text-primary)', fontFamily: 'var(--font-mono)',
-              }}
-            >
-              {localBranches.length === 0 && <option value="">No hay ramas</option>}
-              {localBranches.map(b => (
-                <option key={b.name} value={b.name}>{b.name}{b.is_current ? ' (actual)' : ''}</option>
-              ))}
-            </select>
+              onChange={setTargetBranch}
+            />
           </div>
           <button
             className="btn-primary"
             onClick={handleApply}
             disabled={applying || selectedCommits.size === 0 || !targetBranch}
-            style={{ fontSize: 12, padding: '6px 14px', whiteSpace: 'nowrap' }}
+            style={{ fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            {applying ? <span className="spinner-sm" /> : '🍒'} Cherry-pick ({selectedCommits.size})
+            {applying ? <span className="spinner-sm" /> : '🍒'} ({selectedCommits.size})
           </button>
         </div>
 

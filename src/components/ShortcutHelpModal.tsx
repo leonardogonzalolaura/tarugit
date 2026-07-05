@@ -10,7 +10,7 @@ const shortcuts: ShortcutItem[] = [
   { keys: 'Ctrl + 2', label: 'Pestaña: Historial' },
   { keys: 'Ctrl + 3', label: 'Pestaña: Stash' },
   { keys: 'Ctrl + 4', label: 'Pestaña: Tags' },
-  { keys: 'Ctrl + 5', label: 'Actions (panel central)' },
+  { keys: 'Ctrl + 5 / Ctrl + Shift + K', label: 'Actions (panel central)' },
   { keys: 'Ctrl + Tab', label: 'Siguiente pestaña' },
   { keys: 'Ctrl + Shift + Tab', label: 'Pestaña anterior' },
   { keys: 'Ctrl + B', label: 'Colapsar/expandir barra lateral' },

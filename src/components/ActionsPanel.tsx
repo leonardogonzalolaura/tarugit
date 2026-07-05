@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FileDiff } from '../types';
 import { PullRequestsPanel } from './PullRequestsPanel';
+import { toast } from './Toast';
 
 interface WorkflowRun {
   id: number;
@@ -91,7 +92,9 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
   const [expandedJobsSet, setExpandedJobsSet] = useState<Set<number>>(new Set());
+  const [copiedRunId, setCopiedRunId] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const jobsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeTab, setActiveTab] = useState<'runs' | 'pulls'>('runs');
   const [commitModalSha, setCommitModalSha] = useState<string | null>(null);
   const [commitModalFiles, setCommitModalFiles] = useState<FileDiff[]>([]);
@@ -156,6 +159,27 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [hasInProgress, token, fetchRuns]);
+
+  useEffect(() => {
+    if (jobsIntervalRef.current) clearInterval(jobsIntervalRef.current);
+    const expandedRunData = runs.find(r => r.id === expandedRun);
+    const isInProgress = expandedRunData && (
+      expandedRunData.status === 'in_progress' ||
+      expandedRunData.status === 'queued' ||
+      expandedRunData.status === 'pending'
+    );
+    if (token && expandedRun !== null && isInProgress) {
+      jobsIntervalRef.current = setInterval(async () => {
+        try {
+          const jobs = await invoke<WorkflowRunJob[]>('get_workflow_run_jobs', {
+            repoPath, runId: expandedRun, token,
+          });
+          setExpandedJobs(jobs);
+        } catch {}
+      }, 10000);
+    }
+    return () => { if (jobsIntervalRef.current) clearInterval(jobsIntervalRef.current); };
+  }, [hasInProgress, expandedRun, token, repoPath, runs]);
 
   const handleSaveToken = () => {
     const trimmed = inputToken.trim();
@@ -271,7 +295,10 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
         <div className="actions-header-actions">
           {activeTab === 'runs' && (
             <button className="btn-edit" onClick={() => fetchRuns(token)} title="Actualizar"
-              style={{ padding: '4px 8px', fontSize: 13 }}>
+              style={{
+                padding: '4px 8px', fontSize: 13,
+                animation: loading ? 'spin 0.6s linear infinite' : 'none',
+              }}>
               ↻
             </button>
           )}
@@ -350,9 +377,19 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
                       <span className="actions-run-date">{formatDate(run.created_at)}</span>
                       <button
                         className="actions-copy-btn"
-                        onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(run.html_url); }}
-                        title="Copiar enlace del run"
-                      >🔗</button>
+                        onClick={e => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(run.html_url);
+                          setCopiedRunId(run.id);
+                          toast.success('Link copiado');
+                          setTimeout(() => setCopiedRunId(null), 1500);
+                        }}
+                        title={copiedRunId === run.id ? 'Copiado' : 'Copiar enlace del run'}
+                        style={{
+                          color: copiedRunId === run.id ? 'var(--green, #3cc864)' : undefined,
+                          opacity: copiedRunId === run.id ? 1 : undefined,
+                        }}
+                      >{copiedRunId === run.id ? '✅' : '🔗'}</button>
                     </div>
                     <span className="actions-run-chevron">{isExpanded ? '▼' : '▶'}</span>
                   </div>
@@ -423,20 +460,20 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 700, maxHeight: '80vh', width: '90%' }}>
             <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, wordBreak: 'break-word' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={(() => { const run = runs.find(r => r.head_sha.startsWith(commitModalSha)); return run ? run.head_commit_message.split('\n')[0] : commitModalSha.slice(0, 7); })()}>
                   {(() => {
                     const run = runs.find(r => r.head_sha.startsWith(commitModalSha));
                     return run ? run.head_commit_message.split('\n')[0] : commitModalSha.slice(0, 7);
                   })()}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'var(--font-mono)' }}>{commitModalSha.slice(0, 7)}</span>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, flexWrap: 'nowrap', overflow: 'hidden' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>{commitModalSha.slice(0, 7)}</span>
                   {(() => {
                     const run = runs.find(r => r.head_sha.startsWith(commitModalSha));
                     return run ? (
                       <>
-                        <span>👤 {run.head_commit_author_name}</span>
-                        <span>🌿 {run.head_branch}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>👤 {run.head_commit_author_name}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>🌿 {run.head_branch}</span>
                       </>
                     ) : null;
                   })()}
@@ -454,7 +491,19 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
                   {commitModalFiles.map(f => (
                     <div key={f.path} className="commit-modal-file">
                       <div className="commit-modal-file-header">
-                        <span className="commit-modal-file-path">{f.path}</span>
+                        <span className="commit-modal-file-path" title={f.path}>
+                          {(() => {
+                            const parts = f.path.replace(/\\/g, '/').split('/');
+                            const filename = parts.pop() ?? f.path;
+                            const dir = parts.join('/');
+                            return (
+                              <>
+                                {dir && <span className="commit-modal-file-dir">{dir}/</span>}
+                                <span className="commit-modal-file-name">{filename}</span>
+                              </>
+                            );
+                          })()}
+                        </span>
                         <span className="commit-modal-file-stats">
                           <span className="commit-modal-file-adds">+{f.additions}</span>
                           <span className="commit-modal-file-dels">-{f.deletions}</span>

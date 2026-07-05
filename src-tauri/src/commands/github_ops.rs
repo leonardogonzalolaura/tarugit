@@ -335,7 +335,7 @@ pub async fn list_pull_requests(
     page: Option<i64>,
 ) -> Result<Vec<PullRequest>, String> {
     let (owner, repo) = get_owner_repo(&repo_path)?;
-    let state = state.unwrap_or_else(|| "open".to_string());
+    let state = state.unwrap_or_else(|| "all".to_string());
     let page = page.unwrap_or(1);
     let url = format!(
         "https://api.github.com/repos/{}/{}/pulls?state={}&page={}&per_page=20",
@@ -708,6 +708,8 @@ pub async fn update_pull_request(
     token: String,
     number: i64,
     state: String,
+    title: Option<String>,
+    body: Option<String>,
 ) -> Result<PullRequest, String> {
     let (owner, repo) = get_owner_repo(&repo_path)?;
     let url = format!(
@@ -717,6 +719,12 @@ pub async fn update_pull_request(
 
     let mut payload = serde_json::Map::new();
     payload.insert("state".to_string(), serde_json::Value::String(state));
+    if let Some(t) = title {
+        payload.insert("title".to_string(), serde_json::Value::String(t));
+    }
+    if let Some(b) = body {
+        payload.insert("body".to_string(), serde_json::Value::String(b));
+    }
 
     let client = reqwest::Client::new();
     let resp = client
