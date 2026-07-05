@@ -18,6 +18,7 @@ import { Footer } from './components/Footer';
 import { StashPanel } from './components/StashPanel';
 import { CreateStashModal } from './components/CreateStashModal';
 import { TagPanel } from './components/TagPanel';
+import { ActionsPanel } from './components/ActionsPanel';
 import { ToastContainer, toast } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UserModal } from './components/UserModal';
@@ -54,7 +55,7 @@ function App() {
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState('');
-  const [leftTab, setLeftTab] = useState<'changes' | 'history' | 'stash' | 'tags' | 'graph'>('changes');
+  const [leftTab, setLeftTab] = useState<'changes' | 'history' | 'stash' | 'tags' | 'graph' | 'actions'>('changes');
   const [activePanel, setActivePanel] = useState<'diff' | 'branches'>('diff');
   const [selectedCommitInfo, setSelectedCommitInfo] = useState<ExtendedCommitInfo | null>(null);
   const [commitFileDiffs, setCommitFileDiffs] = useState<{ path: string; diff: string; additions: number; deletions: number }[]>([]);
@@ -236,9 +237,10 @@ function App() {
     { key: '2', ctrl: true, handler: () => setLeftTab('history') },
     { key: '3', ctrl: true, handler: () => setLeftTab('stash') },
     { key: '4', ctrl: true, handler: () => setLeftTab('tags') },
+    { key: '5', ctrl: true, handler: () => setLeftTab('actions') },
     { key: 'p', ctrl: true, handler: () => setShowQuickRepo(v => !v) },
-    { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : 'changes'; }) },
-    { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'tags'; return t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'tags'; }) },
+    { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : t === 'tags' ? 'actions' : 'changes'; }) },
+    { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'actions'; return t === 'actions' ? 'tags' : t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'actions'; }) },
     { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },
     { key: 's', ctrl: true, shift: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
     { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
@@ -259,6 +261,8 @@ function App() {
           onCloneRepo={() => setShowCloneModal(true)}
           showGraph={leftTab === 'graph'}
           onShowGraph={() => setLeftTab(t => t === 'graph' ? 'changes' : 'graph')}
+          showActions={leftTab === 'actions'}
+          onShowActions={() => setLeftTab(t => t === 'actions' ? 'changes' : 'actions')}
         />
 
         {showAddModal && (
@@ -505,6 +509,10 @@ function App() {
 
             {leftTab === 'graph' && (
               <BranchGraph repoPath={repoPath} />
+            )}
+
+            {leftTab === 'actions' && repoPath && (
+              <ActionsPanel repoPath={repoPath} currentBranch={repoInfo?.current_branch} />
             )}
           </div>
         </div>

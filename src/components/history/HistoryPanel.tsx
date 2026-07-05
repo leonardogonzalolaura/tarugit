@@ -22,9 +22,11 @@ interface HistoryPanelProps {
   /** Cuando es true, oculta el panel de diff interno y llama onCommitSelect */
   compactMode?: boolean;
   onCommitSelect?: (commit: ExtendedCommitInfo | null, fileDiffs: FileDiff[]) => void;
+  focusCommit?: string | null;
+  onFocusConsumed?: () => void;
 }
 
-export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOperation, compactMode = false, onCommitSelect }: HistoryPanelProps) {
+export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOperation, compactMode = false, onCommitSelect, focusCommit, onFocusConsumed }: HistoryPanelProps) {
   const [commits, setCommits] = useState<ExtendedCommitInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -201,6 +203,15 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
       setSquashing(false);
     }
   };
+
+  useEffect(() => {
+    if (!focusCommit || commits.length === 0) return;
+    const match = commits.find(c => c.id.startsWith(focusCommit));
+    if (match && match.id !== selectedCommit) {
+      handleSelectCommit(match);
+    }
+    onFocusConsumed?.();
+  }, [focusCommit, commits]);
 
   const filtered = search
     ? commits.filter(c =>

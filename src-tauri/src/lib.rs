@@ -79,6 +79,10 @@ pub fn run() {
             commands::graph_ops::get_commit_graph,
             commands::file_ops::read_file_from_commit,
             commands::file_ops::get_file_info,
+            // GitHub Actions
+            commands::github_ops::list_workflow_runs,
+            commands::github_ops::get_workflow_run_jobs,
+            commands::github_ops::get_github_remote_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
