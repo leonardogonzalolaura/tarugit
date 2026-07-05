@@ -1,7 +1,5 @@
-use std::process::Command;
-
 fn get_owner_repo(repo_path: &str) -> Result<(String, String), String> {
-    let output = Command::new("git")
+    let output = super::git_ops::create_git_command()
         .args(["remote", "get-url", "origin"])
         .current_dir(repo_path)
         .output()

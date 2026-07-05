@@ -5,7 +5,7 @@ use tauri::command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
-fn create_git_command() -> std::process::Command {
+pub(super) fn create_git_command() -> std::process::Command {
     let mut cmd = std::process::Command::new("git");
     cmd.env("GIT_TERMINAL_PROMPT", "0");
     #[cfg(target_os = "windows")]

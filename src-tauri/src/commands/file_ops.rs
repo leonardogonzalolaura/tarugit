@@ -51,7 +51,7 @@ pub fn write_file_content(repo_path: String, file_path: String, content: String)
 pub fn read_file_from_commit(repo_path: String, commit_id: String, file_path: String) -> Result<String, String> {
     log::info!("Leyendo archivo {} del commit {}", file_path, commit_id);
 
-    let output = std::process::Command::new("git")
+    let output = super::git_ops::create_git_command()
         .args(["show", &format!("{}:{}", commit_id, file_path)])
         .current_dir(&repo_path)
         .output()
