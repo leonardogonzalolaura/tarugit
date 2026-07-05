@@ -240,7 +240,7 @@ function App() {
     { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : 'changes'; }) },
     { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'tags'; return t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'tags'; }) },
     { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },
-    { key: 's', ctrl: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
+    { key: 's', ctrl: true, shift: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
     { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
     { key: '/', ctrl: true, handler: () => setShowShortcutHelp(v => !v) },
   ]);

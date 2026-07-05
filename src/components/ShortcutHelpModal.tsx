@@ -15,7 +15,7 @@ const shortcuts: ShortcutItem[] = [
   { keys: 'Ctrl + B', label: 'Colapsar/expandir barra lateral' },
   { keys: 'Ctrl + Shift + B', label: 'Crear rama' },
   { keys: 'Ctrl + P', label: 'Buscador de repositorios' },
-  { keys: 'Ctrl + S', label: 'Abrir modal de sincronización' },
+  { keys: 'Ctrl + Shift + S', label: 'Abrir modal de sincronización' },
   { keys: 'Ctrl + E', label: 'Cherry-pick rápido' },
   { keys: 'Ctrl + Shift + D', label: 'Comparar ramas' },
   { keys: 'Ctrl + ?', label: 'Mostrar esta ayuda' },
