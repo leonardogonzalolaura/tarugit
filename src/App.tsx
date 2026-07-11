@@ -26,6 +26,7 @@ import { QuickRepoModal } from './components/QuickRepoModal';
 import { CherryPickQuickModal } from './components/CherryPickQuickModal';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { SyncModal } from './components/SyncModal';
+import { QuickBranchModal } from './components/QuickBranchModal';
 import { useRepository } from './hooks/useRepository';
 import { useUsers } from './hooks/useUsers';
 import { useStash } from './hooks/useStash';
@@ -76,6 +77,7 @@ function App() {
   const [showCherryQuick, setShowCherryQuick] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showQuickBranch, setShowQuickBranch] = useState(false);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
@@ -245,6 +247,7 @@ function App() {
     { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },
     { key: 's', ctrl: true, shift: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
     { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
+    { key: 'l', ctrl: true, handler: () => { if (repoPath) setShowQuickBranch(v => !v); } },
     { key: '/', ctrl: true, handler: () => setShowShortcutHelp(v => !v) },
   ]);
 
@@ -569,6 +572,17 @@ function App() {
             currentBranch={repoInfo.current_branch}
             onClose={() => setShowSyncModal(false)}
             onRefresh={refreshAll}
+          />
+        )}
+
+        {showQuickBranch && repoPath && (
+          <QuickBranchModal
+            repoPath={repoPath}
+            currentBranch={repoInfo?.current_branch ?? ''}
+            hasUncommittedChanges={(repoInfo?.files?.length ?? 0) > 0}
+            onBranchSwitch={refreshAll}
+            onConflictOperation={handleConflictDetected}
+            onClose={() => setShowQuickBranch(false)}
           />
         )}
 
