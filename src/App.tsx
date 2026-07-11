@@ -27,6 +27,7 @@ import { CherryPickQuickModal } from './components/CherryPickQuickModal';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { SyncModal } from './components/SyncModal';
 import { QuickBranchModal } from './components/QuickBranchModal';
+import { BatchDeleteBranchesModal } from './components/BatchDeleteBranchesModal';
 import { useRepository } from './hooks/useRepository';
 import { useUsers } from './hooks/useUsers';
 import { useStash } from './hooks/useStash';
@@ -78,6 +79,7 @@ function App() {
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [showQuickBranch, setShowQuickBranch] = useState(false);
+  const [showBatchDelete, setShowBatchDelete] = useState(false);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
@@ -248,6 +250,7 @@ function App() {
     { key: 's', ctrl: true, shift: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
     { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
     { key: 'l', ctrl: true, handler: () => { if (repoPath) setShowQuickBranch(v => !v); } },
+    { key: 'Delete', ctrl: true, shift: true, handler: () => { if (repoPath) setShowBatchDelete(v => !v); } },
     { key: '/', ctrl: true, handler: () => setShowShortcutHelp(v => !v) },
   ]);
 
@@ -583,6 +586,15 @@ function App() {
             onBranchSwitch={refreshAll}
             onConflictOperation={handleConflictDetected}
             onClose={() => setShowQuickBranch(false)}
+          />
+        )}
+
+        {showBatchDelete && repoPath && (
+          <BatchDeleteBranchesModal
+            repoPath={repoPath}
+            currentBranch={repoInfo?.current_branch ?? ''}
+            onClose={() => setShowBatchDelete(false)}
+            onRefresh={refreshAll}
           />
         )}
 

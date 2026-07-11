@@ -20,6 +20,7 @@ const shortcuts: ShortcutItem[] = [
   { keys: 'Ctrl + E', label: 'Cherry-pick rápido' },
   { keys: 'Ctrl + Shift + D', label: 'Comparar ramas' },
   { keys: 'Ctrl + L', label: 'Buscador de ramas' },
+  { keys: 'Ctrl + Shift + Supr', label: 'Eliminar varias ramas' },
   { keys: 'Ctrl + ?', label: 'Mostrar esta ayuda' },
 ];
 
