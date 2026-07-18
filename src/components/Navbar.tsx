@@ -230,7 +230,7 @@ export function Navbar({
               onClick={onShowGraph}
               title={showGraph ? 'Cerrar grafo' : 'Ver grafo de commits'}
             >
-              🌳 <span style={{ fontSize: 11 }}>Grafo</span>
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="4" cy="4" r="2.5"/><circle cx="12" cy="8" r="2.5"/><path d="M4 6.5v3a2.5 2.5 0 0 0 2.5 2.5H12"/><path d="M9.5 6.5L12 9l-2.5 2.5"/></svg> <span style={{ fontSize: 11 }}>Grafo</span>
             </button>
           )}
           {repoInfo && (
@@ -239,7 +239,7 @@ export function Navbar({
               onClick={onShowActions}
               title={showActions ? 'Cerrar Actions' : 'Ver GitHub Actions'}
             >
-              ⚡ <span style={{ fontSize: 11 }}>Actions</span>
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="4,2 14,8 4,14"/></svg> <span style={{ fontSize: 11 }}>Actions</span>
             </button>
           )}
         </div>

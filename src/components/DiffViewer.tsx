@@ -308,7 +308,7 @@ npm-debug.log*
       }),
       EditorView.theme({
         '&': { backgroundColor: 'transparent', height: '100%' },
-        '.cm-scroller': { fontFamily: 'var(--font-mono), "Cascadia Code", "Fira Code", Consolas, monospace', fontSize: '13px' },
+        '.cm-scroller': { fontFamily: 'var(--font-mono), "Cascadia Code", "Fira Code", Consolas, monospace', fontSize: '11px' },
         '.cm-gutters': { backgroundColor: 'var(--bg-base)', borderRight: '1px solid var(--border)', color: 'var(--text-muted)' },
         '.cm-activeLineGutter': { backgroundColor: 'var(--bg-hover)' },
         '.cm-activeLine': { backgroundColor: 'transparent' },

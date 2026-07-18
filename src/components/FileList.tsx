@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, forwardRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FileStatus } from '../types';
 import { toast } from './Toast';
@@ -22,17 +22,78 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   unknown:    { label: '?', cls: 'st-unknown'   },
 };
 
-export function FileList({ files, selectedFile, loading, onSelectFile, onDiscardFile, onFileHistory, repoPath, onRefresh }: FileListProps) {
+export const FileList = forwardRef<HTMLDivElement, FileListProps>(function FileList({ files, selectedFile, loading, onSelectFile, onDiscardFile, onFileHistory, repoPath, onRefresh }, ref) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [focusedIdx, setFocusedIdx] = useState(-1);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const setListRef = useCallback((el: HTMLDivElement | null) => {
+    (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    if (typeof ref === 'function') ref(el);
+    else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+  }, [ref]);
+  const listRef = innerRef;
 
   const filteredFiles = useMemo(() => {
     if (!searchQuery.trim()) return files;
     const query = searchQuery.toLowerCase();
     return files.filter(f => f.path.toLowerCase().includes(query));
   }, [files, searchQuery]);
+
+  const conflicted = useMemo(() => filteredFiles.filter(f => f.status === 'conflicted'), [filteredFiles]);
+  const normal = useMemo(() => filteredFiles.filter(f => f.status !== 'conflicted'), [filteredFiles]);
+  const flatFiles = useMemo(() => [...conflicted, ...normal], [conflicted, normal]);
+
+  const scrollIntoView = useCallback((idx: number) => {
+    const items = listRef.current?.querySelectorAll<HTMLElement>('[data-idx]');
+    if (items && items[idx]) {
+      items[idx].scrollIntoView({ block: 'nearest' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedFile) {
+      const idx = flatFiles.findIndex(f => f.path === selectedFile);
+      setFocusedIdx(Math.max(idx, 0));
+    } else if (flatFiles.length > 0) {
+      setFocusedIdx(0);
+    } else {
+      setFocusedIdx(-1);
+    }
+  }, [selectedFile, flatFiles]);
+
+  useEffect(() => {
+    if (focusedIdx >= 0) scrollIntoView(focusedIdx);
+  }, [focusedIdx, scrollIntoView]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const h = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      if (flatFiles.length === 0) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIdx(i => Math.min(i + 1, flatFiles.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIdx(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' && flatFiles[focusedIdx]) {
+        e.preventDefault();
+        onSelectFile(flatFiles[focusedIdx].path);
+        return;
+      }
+    };
+    el.addEventListener('keydown', h);
+    return () => el.removeEventListener('keydown', h);
+  }, [flatFiles, focusedIdx, onSelectFile]);
 
   const toggleSelect = (path: string) => {
     setSelectedFiles(prev => {
@@ -106,10 +167,7 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
     );
   }
 
-  const conflicted = filteredFiles.filter(f => f.status === 'conflicted');
-  const normal = filteredFiles.filter(f => f.status !== 'conflicted');
-
-  const renderFileRow = (file: FileStatus) => {
+  const renderFileRow = (file: FileStatus, idx: number) => {
     const meta = STATUS_META[file.status] ?? STATUS_META.unknown;
     const isSelected = selectedFile === file.path;
     const isChecked = selectedFiles.has(file.path);
@@ -136,7 +194,8 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
     return (
       <div
         key={file.path}
-        className={`f-row${isSelected ? ' selected' : ''}${isConflicted ? ' conflicted' : ''}`}
+        data-idx={idx}
+        className={`f-row${isSelected ? ' selected' : ''}${isConflicted ? ' conflicted' : ''}${idx === focusedIdx ? ' focused' : ''}`}
         onClick={() => onSelectFile(file.path)}
       >
         <label className="f-cb" onClick={e => e.stopPropagation()}>
@@ -167,7 +226,7 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
   };
 
   return (
-    <div className="fl">
+    <div ref={setListRef} className="fl" tabIndex={0}>
       {/* Header */}
       <div className="fl-header">
         <div className="fl-title">
@@ -236,7 +295,7 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
             <span>⚠ Conflictos</span>
             <span className="fl-section-count">{conflicted.length}</span>
           </div>
-          {conflicted.map(f => renderFileRow(f))}
+          {conflicted.map((f, i) => renderFileRow(f, i))}
         </div>
       )}
 
@@ -249,9 +308,9 @@ export function FileList({ files, selectedFile, loading, onSelectFile, onDiscard
               <span className="fl-section-count">{normal.length}</span>
             </div>
           )}
-          {normal.map(f => renderFileRow(f))}
+          {normal.map((f, i) => renderFileRow(f, conflicted.length + i))}
         </div>
       )}
     </div>
   );
-}
+});

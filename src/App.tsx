@@ -73,6 +73,7 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(350);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const fileListRef = useRef<HTMLDivElement>(null);
   const [lastCommitMessage, setLastCommitMessage] = useState('');
   const [showQuickRepo, setShowQuickRepo] = useState(false);
   const [showCherryQuick, setShowCherryQuick] = useState(false);
@@ -84,6 +85,13 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty('--sidebar-w', `${sidebarWidth}px`);
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!sidebarCollapsed && repoInfo && leftTab === 'changes') {
+      const timer = setTimeout(() => fileListRef.current?.focus(), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [sidebarCollapsed, repoInfo, leftTab]);
 
   useEffect(() => {
     if (!repoPath) return;
@@ -367,6 +375,7 @@ function App() {
                   <>
                     <div className="file-section">
                       <FileList
+                        ref={fileListRef}
                         files={repoInfo.files}
                         selectedFile={selectedFile}
                         loading={loading}
