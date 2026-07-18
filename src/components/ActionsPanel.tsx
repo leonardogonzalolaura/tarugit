@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FileDiff } from '../types';
+import { FileDiff, BranchInfo } from '../types';
 import { PullRequestsPanel } from './PullRequestsPanel';
 import { toast } from './Toast';
 
@@ -99,6 +99,10 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
   const [commitModalSha, setCommitModalSha] = useState<string | null>(null);
   const [commitModalFiles, setCommitModalFiles] = useState<FileDiff[]>([]);
   const [commitModalLoading, setCommitModalLoading] = useState(false);
+  const [branches, setBranches] = useState<BranchInfo[]>([]);
+  const [selectedBranches, setSelectedBranches] = useState<Set<string>>(new Set());
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!commitModalSha) return;
@@ -119,8 +123,12 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
       || `#${r.run_number}`.includes(q);
   });
 
-  const totalPages = Math.ceil(filteredRuns.length / PAGE_SIZE);
-  const pagedRuns = filteredRuns.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const displayRuns = selectedBranches.size === 0
+    ? filteredRuns
+    : filteredRuns.filter(r => selectedBranches.has(r.head_branch));
+
+  const totalPages = Math.ceil(displayRuns.length / PAGE_SIZE);
+  const pagedRuns = displayRuns.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   useEffect(() => {
     if (!repoPath || !token) return;
@@ -128,6 +136,22 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
       .then(setRemoteInfo)
       .catch(() => setRemoteInfo(''));
   }, [repoPath, token]);
+
+  useEffect(() => {
+    if (!repoPath) return;
+    invoke<BranchInfo[]>('list_branches', { repoPath }).then(setBranches).catch(() => {});
+  }, [repoPath]);
+
+  useEffect(() => {
+    if (!branchDropdownOpen) return;
+    const h = (e: MouseEvent) => {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target as Node)) {
+        setBranchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [branchDropdownOpen]);
 
   const fetchRuns = useCallback(async (t: string) => {
     if (!repoPath || !t) return;
@@ -137,7 +161,7 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
       const result = await invoke<WorkflowRun[]>('list_workflow_runs', {
         repoPath,
         token: t,
-        branch: currentBranch || null,
+        branch: null,
       });
       setRuns(result);
     } catch (e) {
@@ -145,7 +169,7 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [repoPath, currentBranch]);
+  }, [repoPath]);
 
   useEffect(() => {
     if (!token) return;
@@ -291,6 +315,120 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
             onClick={() => setActiveTab('pulls')}
           >🔀 PRs</button>
           {remoteInfo && <span className="actions-remote" style={{ marginLeft: 8 }}>{remoteInfo}</span>}
+          {activeTab === 'runs' && branches.length > 0 && (
+            <div ref={branchDropdownRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.5 2.5 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
+              </svg>
+              <button
+                onClick={() => setBranchDropdownOpen(v => !v)}
+                style={{
+                  fontSize: 11,
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  color: 'var(--text-primary)',
+                  padding: '2px 6px',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-mono)',
+                  maxWidth: 150,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {selectedBranches.size === 0
+                  ? 'Todas las ramas'
+                  : selectedBranches.size === 1 && selectedBranches.has(currentBranch ?? '')
+                    ? `${currentBranch} (actual)`
+                    : `${selectedBranches.size} rama${selectedBranches.size !== 1 ? 's' : ''}`}
+                <span style={{ marginLeft: 4, fontSize: 8 }}>▼</span>
+              </button>
+              {branchDropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: 4,
+                    zIndex: 100,
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    boxShadow: 'var(--shadow-lg)',
+                    maxHeight: 250,
+                    overflowY: 'auto',
+                    minWidth: 180,
+                    padding: '4px 0',
+                  }}
+                >
+                  <div
+                    onClick={() => setSelectedBranches(new Set())}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: selectedBranches.size === 0 ? 'var(--accent)' : 'var(--text-primary)',
+                      fontWeight: selectedBranches.size === 0 ? 600 : 400,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                      <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8Z"/>
+                    </svg>
+                    Todas las ramas
+                  </div>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '2px 0' }} />
+                  {branches.filter(b => !b.is_remote).map(b => {
+                    const isSelected = selectedBranches.has(b.name);
+                    return (
+                      <div
+                        key={b.name}
+                        onClick={() => {
+                          setSelectedBranches(prev => {
+                            const next = new Set(prev);
+                            if (next.has(b.name)) next.delete(b.name);
+                            else next.add(b.name);
+                            return next;
+                          });
+                        }}
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontFamily: 'var(--font-mono)',
+                          background: isSelected ? 'var(--bg-hover)' : 'transparent',
+                          color: 'var(--text-primary)',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                        onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          style={{ accentColor: 'var(--accent)', margin: 0 }}
+                        />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {b.name}
+                        </span>
+                        {b.name === currentBranch && (
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>actual</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="actions-header-actions">
           {activeTab === 'runs' && (
@@ -443,7 +581,7 @@ export function ActionsPanel({ repoPath, currentBranch }: ActionsPanelProps) {
                 onClick={() => setPage(p => Math.max(0, p - 1))}
               >‹ Anterior</button>
               <span className="actions-page-info">
-                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredRuns.length)} de {filteredRuns.length}
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, displayRuns.length)} de {displayRuns.length}
               </span>
               <button
                 className="actions-page-btn"
