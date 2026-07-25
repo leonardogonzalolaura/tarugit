@@ -4,13 +4,14 @@ import { Navbar } from './components/Navbar';
 import { TitleBar } from './components/TitleBar';
 import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager';
 import { FileList } from './components/FileList';
+import { LeftTabs } from './components/LeftTabs';
 import { DiffViewer } from './components/DiffViewer';
 import { CommitPanel } from './components/CommitPanel';
 import { HistoryPanel, ExtendedCommitInfo } from './components/history/HistoryPanel';
 import { FileDiffViewer } from './components/history/FileDiffViewer';
+import { CommitDiffPanel } from './components/history/CommitDiffPanel';
 import { FileHistoryModal } from './components/history/FileHistoryModal';
 import { BranchGraph } from './components/graph/BranchGraph';
-import { formatDate } from './components/history/utils';
 import { FileDiff, StashInfo } from './types';
 import { ConflictResolver } from './components/ConflictResolver/index';
 import { OperationStatusBar } from './components/OperationStatusBar';
@@ -33,41 +34,6 @@ import { useUsers } from './hooks/useUsers';
 import { useStash } from './hooks/useStash';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import './App.css';
-
-function CommitDiffLines({ diff }: { diff: string }) {
-  if (!diff) return <div className="hds-empty">Sin cambios</div>;
-
-  const lines = diff.split('\n').filter(line => {
-    if (line.startsWith('diff --git ') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) return false;
-    return true;
-  });
-
-  let lineNum = 0;
-  const lineData = lines.map(line => {
-    const first = line[0];
-    if (first === '@') {
-      const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (match) lineNum = parseInt(match[1], 10) - 1;
-      return { content: line, type: 'hunk' as const, num: '' };
-    }
-    if (first === '+') { lineNum++; return { content: line, type: 'add' as const, num: lineNum }; }
-    if (first === '-') return { content: line, type: 'del' as const, num: '' };
-    lineNum++;
-    return { content: line, type: 'ctx' as const, num: lineNum };
-  });
-
-  return (
-    <div className="hds-lines">
-      {lineData.map((ld, i) => (
-        <div key={i} className={`hds-line hds-line-${ld.type}`}>
-          <span className="hds-ln">{ld.num}</span>
-          <span className="hds-ln-marker">{ld.content[0] === '+' || ld.content[0] === '-' ? ld.content[0] : ' '}</span>
-          <span className="hds-ln-text">{ld.content.slice(1)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function App() {
   const { sorted: savedRepos, addRepo } = useRepos('');
@@ -93,7 +59,6 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileDiff, setFileDiff] = useState('');
   const [leftTab, setLeftTab] = useState<'changes' | 'history' | 'stash' | 'tags' | 'graph' | 'actions'>('changes');
-  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<'diff' | 'branches'>('diff');
   const [selectedCommitInfo, setSelectedCommitInfo] = useState<ExtendedCommitInfo | null>(null);
   const [commitFileDiffs, setCommitFileDiffs] = useState<{ path: string; diff: string; additions: number; deletions: number }[]>([]);
@@ -108,8 +73,6 @@ function App() {
   const [stashLoading, setStashLoading] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(350);
   const [isResizing, setIsResizing] = useState(false);
-  const [hdsFileListWidth, setHdsFileListWidth] = useState(25);
-  const [hdsResizing, setHdsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const fileListRef = useRef<HTMLDivElement>(null);
   const [lastCommitMessage, setLastCommitMessage] = useState('');
@@ -376,38 +339,12 @@ function App() {
 
             {!sidebarCollapsed && repoInfo && (
               <>
-                <div className="left-tabs">
-                  <button
-                    className={`left-tab-btn${leftTab === 'changes' ? ' active' : ''}`}
-                    onClick={() => setLeftTab('changes')}
-                  >
-                    Cambios
-                    {repoInfo.files.length > 0 && (
-                      <span className="left-tab-badge">{repoInfo.files.length}</span>
-                    )}
-                  </button>
-                  <button
-                    className={`left-tab-btn${leftTab === 'history' ? ' active' : ''}`}
-                    onClick={() => setLeftTab('history')}
-                  >
-                    Historial
-                  </button>
-                <button
-                  className={`left-tab-btn${leftTab === 'stash' ? ' active' : ''}`}
-                  onClick={() => setLeftTab('stash')}
-                >
-                  Stash
-                  {stashes.length > 0 && (
-                    <span className="left-tab-badge">{stashes.length}</span>
-                  )}
-                </button>
-                <button
-                  className={`left-tab-btn${leftTab === 'tags' ? ' active' : ''}`}
-                  onClick={() => setLeftTab('tags')}
-                >
-                  Tags
-                </button>
-              </div>
+                <LeftTabs
+                  activeTab={leftTab}
+                  onTabChange={setLeftTab}
+                  filesCount={repoInfo.files.length}
+                  stashesCount={stashes.length}
+                />
 
                 {leftTab === 'changes' && (
                   <>
@@ -450,7 +387,6 @@ function App() {
                       onCommitSelect={(commit, diffs) => {
                         setSelectedCommitInfo(commit);
                         setCommitFileDiffs(diffs);
-                        setSelectedDiffFile(diffs && diffs.length > 0 ? diffs[0].path : null);
                       }}
                     />
                   </div>
@@ -482,83 +418,7 @@ function App() {
           <div className="right-col">
             {leftTab === 'history' && (
               selectedCommitInfo ? (
-                <div className="diff-panel">
-                  <div className="diff-header">
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="diff-file-path" style={{ fontWeight: 600, marginBottom: 2 }}>
-                        {selectedCommitInfo.message.split('\n')[0]}
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', gap: 12 }}>
-                        <span>{selectedCommitInfo.id.slice(0, 12)}</span>
-                        <span>👤 {selectedCommitInfo.author}</span>
-                        <span>📅 {formatDate(selectedCommitInfo.timestamp)}</span>
-                      </div>
-                    </div>
-                    <button
-                      className="btn-close"
-                      onClick={() => { setSelectedCommitInfo(null); setCommitFileDiffs([]); setSelectedDiffFile(null); }}
-                    >✕</button>
-                  </div>
-                  <div className="history-diff-split"
-                    onMouseMove={e => {
-                      if (!hdsResizing) return;
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const pct = ((e.clientX - rect.left) / rect.width) * 100;
-                      setHdsFileListWidth(Math.min(Math.max(pct, 15), 50));
-                    }}
-                    onMouseUp={() => { if (hdsResizing) { setHdsResizing(false); document.body.style.cursor = ''; document.body.style.userSelect = ''; } }}
-                    onMouseLeave={() => { if (hdsResizing) { setHdsResizing(false); document.body.style.cursor = ''; document.body.style.userSelect = ''; } }}
-                  >
-                    <div className="hds-file-list" style={{ width: `${hdsFileListWidth}%`, minWidth: `${hdsFileListWidth}%` }}>
-                      <div className="hds-fl-header">
-                        <span className="hds-fl-count">{commitFileDiffs.length} archivo{commitFileDiffs.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <div className="hds-fl-body">
-                        {commitFileDiffs.map(f => {
-                          const parts = f.path.replace(/\\/g, '/').split('/');
-                          const filename = parts.pop() ?? f.path;
-                          const dir = parts.join('/');
-                          return (
-                            <div
-                              key={f.path}
-                              className={`hds-fl-item${selectedDiffFile === f.path ? ' selected' : ''}`}
-                              onClick={() => setSelectedDiffFile(f.path)}
-                            >
-                              <span className="hds-fl-path">
-                                {dir ? <span className="hds-fl-dir">{dir}/</span> : null}
-                                <span className="hds-fl-name">{filename}</span>
-                              </span>
-                              <span className="hds-fl-stats">
-                                {f.additions > 0 && <span className="hds-fl-add">+{f.additions}</span>}
-                                {f.deletions > 0 && <span className="hds-fl-del">-{f.deletions}</span>}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div
-                      className="hds-divider"
-                      onMouseDown={e => { e.preventDefault(); setHdsResizing(true); document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; }}
-                    />
-                    <div className="hds-diff-content">
-                      {commitFileDiffs.filter(f => f.path === selectedDiffFile).map(f => (
-                        <div key={f.path} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                          <div className="hds-dc-header">
-                            <span className="hds-dc-path" title={f.path}>{f.path}</span>
-                            <button className="hds-dc-copy" onClick={() => navigator.clipboard.writeText(f.path)} title="Copiar ruta">
-                              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
-                                <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/>
-                                <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
-                              </svg>
-                            </button>
-                          </div>
-                          <CommitDiffLines diff={f.diff} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <CommitDiffPanel commit={selectedCommitInfo} fileDiffs={commitFileDiffs} />
               ) : (
                 <div className="diff-empty">
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
