@@ -3981,7 +3981,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 /* ─── Left Panel Tabs (Changes / History) ─────────────────────────────────── */
 .left-tabs {
   display: flex;
-  border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
   flex-shrink: 0;
 }
@@ -3992,10 +3991,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 5px 6px;
+  padding: 5px 10px;
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 1px solid transparent;
   color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: 11px;
