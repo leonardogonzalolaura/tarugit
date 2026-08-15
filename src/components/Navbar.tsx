@@ -224,6 +224,15 @@ export function Navbar({
         </div>
 
         <div className="navbar-right">
+          <button
+            className="navbar-add-repo-btn"
+            onClick={onAddRepo}
+            title="Agregar repositorio (Ctrl+O)"
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M8 2v12M2 8h12" />
+            </svg> <span style={{ fontSize: 11 }}>Agregar</span>
+          </button>
           {repoInfo && (
             <button
               className={`navbar-graph-btn${showGraph ? ' active' : ''}`}

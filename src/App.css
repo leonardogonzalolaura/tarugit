@@ -177,6 +177,22 @@ html, body, #root {
 .navbar-graph-btn:hover { background: var(--bg-hover); color: var(--text-secondary); }
 .navbar-graph-btn.active { background: var(--bg-selected); color: var(--accent); }
 
+.navbar-add-repo-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  transition: all .12s;
+}
+.navbar-add-repo-btn:hover { background: var(--bg-hover); color: var(--accent); }
+
 .navbar-sep {
   width: 1px;
   background: var(--border);
@@ -3612,7 +3628,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 /* Branch Selector - GitHub Style */
 .branch-selector {
   position: relative;
-  display: inline-block;
+  display: flex;
+  align-items: stretch;
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
 }
 
 .branch-selector-trigger {
@@ -3628,12 +3647,30 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   cursor: pointer;
   transition: background .12s;
   height: 100%;
-  width: var(--sidebar-w);
+  flex: 1;
+  min-width: 0;
 }
 
 .branch-selector-trigger:hover {
   background: var(--bg-hover);
 }
+
+.branch-fetch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .12s;
+}
+.branch-fetch-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.branch-fetch-btn:disabled { opacity: .5; cursor: default; }
+.branch-fetch-btn:disabled:hover { background: transparent; color: var(--text-muted); }
 
 .branch-selector-current {
   font-weight: 500;
@@ -3703,6 +3740,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   color: var(--text-secondary);
   cursor: pointer;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   transition: all .12s;
 }
 .branch-selector-action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }

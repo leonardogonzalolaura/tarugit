@@ -1671,3 +1671,25 @@ pub async fn delete_tag(repo_path: String, tag_name: String) -> Result<String, S
     .await
     .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
 }
+
+#[command]
+pub async fn push_tag(repo_path: String, tag_name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Subiendo tag {} en: {}", tag_name, repo_path);
+        
+        let output = create_git_command()
+            .args(["push", "origin", &tag_name])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error ejecutando git push: {}", e))?;
+        
+        if output.status.success() {
+            Ok(format!("Tag '{}' subido correctamente", tag_name))
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            Err(format!("Error al subir tag: {}", stderr))
+        }
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}

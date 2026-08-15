@@ -67,6 +67,41 @@ export function TagPanel({ repoPath }: TagPanelProps) {
     }
   };
 
+  const handlePush = async (tagName: string) => {
+    setLoading(true);
+    try {
+      await invoke('push_tag', { repoPath, tagName });
+      toast.success(`Tag '${tagName}' subido al remoto`);
+    } catch (e) {
+      toast.error(`Error al subir tag: ${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateAndPush = async () => {
+    if (!newTagName.trim()) return;
+    setLoading(true);
+    try {
+      await invoke('create_tag', {
+        repoPath,
+        tagName: newTagName.trim(),
+        message: newTagMessage.trim() || null,
+      });
+      toast.success(`Tag '${newTagName}' creado`);
+      await invoke('push_tag', { repoPath, tagName: newTagName.trim() });
+      toast.success(`Tag '${newTagName}' subido al remoto`);
+      setNewTagName('');
+      setNewTagMessage('');
+      setShowCreate(false);
+      await loadTags();
+    } catch (e) {
+      toast.error(`Error al crear y subir tag: ${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="panel-header" style={{ padding: '7px 10px 5px' }}>
@@ -96,6 +131,10 @@ export function TagPanel({ repoPath }: TagPanelProps) {
             <button className="btn-primary" onClick={handleCreate}
               disabled={loading || !newTagName.trim()}
               style={{ flex: 1, fontSize: 11, padding: '5px' }}>Crear</button>
+            <button className="btn-primary" onClick={handleCreateAndPush}
+              disabled={loading || !newTagName.trim()}
+              title="Crear el tag y subirlo al remoto (dispara la release)"
+              style={{ flex: 1, fontSize: 11, padding: '5px' }}>Crear y subir</button>
             <button className="btn-secondary" onClick={() => setShowCreate(false)}
               style={{ fontSize: 11, padding: '5px 10px' }}>Cancelar</button>
           </div>
@@ -135,6 +174,9 @@ export function TagPanel({ repoPath }: TagPanelProps) {
                     </div>
                   )}
                 </div>
+                <button className="btn-discard" title="Subir tag al remoto"
+                  onClick={(e) => { e.stopPropagation(); if (confirm(`¿Subir el tag "${tag.name}" al remoto?`)) handlePush(tag.name); }}
+                  style={{ opacity: 0.3, fontSize: 11 }}>⬆</button>
                 <button className="btn-discard" title="Eliminar tag"
                   onClick={(e) => { e.stopPropagation(); if (confirm(`¿Eliminar tag "${tag.name}"?`)) handleDelete(tag.name); }}
                   style={{ opacity: 0.3, fontSize: 11 }}>🗑️</button>

@@ -93,6 +93,7 @@ Genera los instaladores en `src-tauri/target/release/bundle/`. También hay un w
 | `Ctrl + B` | Colapsar/expandir barra lateral |
 | `Ctrl + Shift + B` | Crear rama |
 | `Ctrl + P` | Buscador de repositorios |
+| `Ctrl + O` | Agregar repositorio |
 | `Ctrl + Shift + S` | Modal de sincronización |
 | `Ctrl + E` | Cherry-pick rápido |
 | `Ctrl + Shift + D` | Comparar ramas |

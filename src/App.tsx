@@ -253,6 +253,7 @@ function App() {
     { key: '5', ctrl: true, handler: () => { setLeftTab('actions'); setSidebarCollapsed(true); } },
     { key: 'k', ctrl: true, shift: true, handler: () => { setLeftTab('actions'); setSidebarCollapsed(true); } },
     { key: 'p', ctrl: true, handler: () => setShowQuickRepo(v => !v) },
+    { key: 'o', ctrl: true, handler: () => setShowAddModal(true) },
     { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : t === 'tags' ? 'actions' : 'changes'; }) },
     { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'actions'; return t === 'actions' ? 'tags' : t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'actions'; }) },
     { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },

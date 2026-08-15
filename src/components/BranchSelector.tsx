@@ -257,6 +257,7 @@ export function BranchSelector({
       await invoke('fetch_remote_branches', { repoPath });
       alert('✅ Ramas remotas actualizadas (Fetch completado)');
       await loadBranches();
+      onBranchSwitch();
     } catch (e) {
       alert(`❌ Error al hacer fetch: ${e}`);
     } finally {
@@ -487,7 +488,7 @@ export function BranchSelector({
       )}
 
       <div className="branch-selector" ref={dropdownRef}>
-        <button 
+        <button
           className="branch-selector-trigger"
           onClick={() => !isOperating && setIsOpen(!isOpen)}
           title="Cambiar de rama"
@@ -503,6 +504,24 @@ export function BranchSelector({
             <span className="spinner-sm" style={{ marginLeft: '6px' }} />
           ) : (
             <span className="branch-selector-chevron">▼</span>
+          )}
+        </button>
+
+        <button
+          className="branch-fetch-btn"
+          onClick={handleFetch}
+          title="Fetch remoto"
+          disabled={loading}
+        >
+          {loading ? (
+            <span className="spinner-sm" />
+          ) : (
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1.5 8a6.5 6.5 0 0 1 11.39-4.27" />
+              <path d="M13 0.5v3.5H9.5" />
+              <path d="M14.5 8a6.5 6.5 0 0 1-11.39 4.27" />
+              <path d="M3 15.5V12h3.5" />
+            </svg>
           )}
         </button>
 
@@ -529,13 +548,6 @@ export function BranchSelector({
                 disabled={isOperating}
               >
                 + Crear rama
-              </button>
-              <button 
-                onClick={handleFetch}
-                className="branch-selector-action-btn"
-                disabled={isOperating}
-              >
-                🔄 Fetch
               </button>
               <button 
                 onClick={() => {
