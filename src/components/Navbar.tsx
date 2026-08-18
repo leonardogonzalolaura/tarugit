@@ -15,6 +15,7 @@ interface NavbarProps {
   showGraph: boolean;
   onShowActions?: () => void;
   showActions: boolean;
+  onHomologar?: () => void;
   hasUncommittedChanges?: boolean;
   onBranchSwitch?: () => void;
   onConflictOperation?: (op: { type: 'merge' | 'rebase' }) => void;
@@ -33,6 +34,7 @@ export function Navbar({
   showGraph,
   onShowActions,
   showActions,
+  onHomologar,
   hasUncommittedChanges = false,
   onBranchSwitch = () => {},
   onConflictOperation
@@ -224,6 +226,17 @@ export function Navbar({
         </div>
 
         <div className="navbar-right">
+          {repoInfo && onHomologar && (
+            <button
+              className="navbar-graph-btn"
+              onClick={onHomologar}
+              title="Homologar ramas (Ctrl+Shift+H)"
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                <path d="M5.45 5.975A5.5 5.5 0 0 1 6.5 3.55V1.75a.75.75 0 0 1 1.5 0v10a.75.75 0 0 1-1.5 0v-2.5a3.5 3.5 0 0 0-3.5 3.5.75.75 0 0 1-1.5 0 5 5 0 0 1 3.45-4.775ZM3 12a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm5-1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM12 2a1 1 0 0 0-1 1v.5a5.5 5.5 0 0 1-3.45 5.025.75.75 0 1 0 .5 1.415A7 7 0 0 0 12.5 5.25V4.5h.25a.75.75 0 0 1 .75.75v1a.25.25 0 0 0 .5 0v-1A1.75 1.75 0 0 0 12.5 3.5H12V3a1 1 0 0 0-1-1Z"/>
+              </svg> <span style={{ fontSize: 11 }}>Homologar</span>
+            </button>
+          )}
           <button
             className="navbar-add-repo-btn"
             onClick={onAddRepo}

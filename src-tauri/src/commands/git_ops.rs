@@ -912,6 +912,28 @@ pub fn cherry_pick_commit(repo_path: String, commit_id: String) -> Result<String
 // ─── Conflict Recovery ────────────────────────────────────────────────────────
 
 #[command]
+pub fn get_commit_branches(repo_path: String, commit_id: String) -> Result<Vec<String>, String> {
+    log::info!("Buscando ramas que contienen el commit {} en: {}", commit_id, repo_path);
+    let output = create_git_command()
+        .args(["branch", "--contains", &commit_id, "--format=%(refname:short)"])
+        .current_dir(&repo_path)
+        .output()
+        .map_err(|e| format!("Error buscando ramas del commit: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        let branches: Vec<String> = stdout
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+        Ok(branches)
+    } else {
+        Err(format!("Error en git branch --contains:\n{}", stderr))
+    }
+}
+
+#[command]
 pub fn rebase_continue(repo_path: String) -> Result<String, String> {
     log::info!("Continuando rebase en: {}", repo_path);
     let add_output = create_git_command()
@@ -1430,6 +1452,216 @@ pub async fn git_status_remote(repo_path: String, branch_name: String) -> Result
             behind,
             has_remote: true,
             has_upstream: true,
+        })
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+#[derive(serde::Serialize, Debug)]
+pub struct BranchRemoteStatus {
+    pub ahead: i32,
+    pub behind: i32,
+    pub has_remote: bool,
+}
+
+#[command]
+pub async fn get_branch_remote_status(repo_path: String, branch_name: String) -> Result<BranchRemoteStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::debug!("Obteniendo estado remoto de {} vs origin/{} en: {}", branch_name, branch_name, repo_path);
+
+        let fetch_output = create_git_command()
+            .args(["fetch", "origin", &branch_name])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error al hacer fetch: {}", e))?;
+        if !fetch_output.status.success() {
+            log::warn!("No se pudo hacer fetch de origin/{}", branch_name);
+        }
+
+        let remote_check = create_git_command()
+            .args(["remote"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando remotos: {}", e))?;
+
+        let has_remote = !String::from_utf8_lossy(&remote_check.stdout).trim().is_empty();
+        if !has_remote {
+            return Ok(BranchRemoteStatus { ahead: 0, behind: 0, has_remote: false });
+        }
+
+        let remote_ref = format!("origin/{}", branch_name);
+        let ref_check = create_git_command()
+            .args(["rev-parse", "--verify", "--quiet", &remote_ref])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando referencia remota: {}", e))?;
+
+        if !ref_check.status.success() {
+            return Ok(BranchRemoteStatus { ahead: 0, behind: 0, has_remote: true });
+        }
+
+        let local_exists = create_git_command()
+            .args(["rev-parse", "--verify", "--quiet", branch_name.as_str()])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando rama local: {}", e))?;
+
+        if !local_exists.status.success() {
+            return Ok(BranchRemoteStatus { ahead: 0, behind: 0, has_remote: true });
+        }
+
+        let diff_output = create_git_command()
+            .args(["rev-list", "--count", "--left-right", &format!("{}...{}", branch_name, remote_ref)])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error obteniendo diferencia de commits: {}", e))?;
+
+        let output_str = String::from_utf8_lossy(&diff_output.stdout);
+        let parts: Vec<&str> = output_str.trim().split('\t').collect();
+
+        let (ahead, behind) = if parts.len() >= 2 {
+            (
+                parts[0].trim().parse::<i32>().unwrap_or(0),
+                parts[1].trim().parse::<i32>().unwrap_or(0),
+            )
+        } else {
+            (0, 0)
+        };
+
+        log::debug!("Estado {} vs remoto - ahead: {}, behind: {}", branch_name, ahead, behind);
+
+        Ok(BranchRemoteStatus { ahead, behind, has_remote: true })
+    })
+    .await
+    .map_err(|e| format!("Error de ejecución en hilo secundario: {}", e))?
+}
+
+#[derive(serde::Serialize, Debug)]
+pub struct SyncBranchResult {
+    pub message: String,
+    pub temp_branch: Option<String>,
+}
+
+#[command]
+pub async fn sync_branch_from_remote(repo_path: String, branch_name: String) -> Result<SyncBranchResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        log::info!("Sincronizando rama {} desde el remoto en: {}", branch_name, repo_path);
+
+        let current_branch = create_git_command()
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error obteniendo rama actual: {}", e))?;
+        let current = String::from_utf8_lossy(&current_branch.stdout).trim().to_string();
+
+        let fetch_output = create_git_command()
+            .args(["fetch", "--all", "--prune"])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error al hacer fetch: {}", e))?;
+        if !fetch_output.status.success() {
+            let stderr = String::from_utf8_lossy(&fetch_output.stderr).to_string();
+            return Err(format!("Error en fetch: {}", stderr));
+        }
+
+        let remote_ref = format!("origin/{}", branch_name);
+        let ref_check = create_git_command()
+            .args(["rev-parse", "--verify", "--quiet", &remote_ref])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando referencia remota: {}", e))?;
+        if !ref_check.status.success() {
+            return Err(format!("No existe la rama remota '{}' en origin.", branch_name));
+        }
+
+        let mut temp_branch: Option<String> = None;
+
+        if current == branch_name {
+            let status_output = create_git_command()
+                .args(["status", "--porcelain"])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Error verificando estado del working tree: {}", e))?;
+            let status = String::from_utf8_lossy(&status_output.stdout);
+            if !status.trim().is_empty() {
+                return Err("DIRTY_WORKING_TREE: Tienes cambios sin confirmar. Confírmalos o guárdalos en stash antes de sincronizar la rama activa.".to_string());
+            }
+
+            let suffix = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| (d.as_millis() % 10000) as u32)
+                .unwrap_or(0);
+            let temp_name = format!("{}-sync-tmp-{}", branch_name, suffix);
+            temp_branch = Some(temp_name.clone());
+
+            let create_temp = create_git_command()
+                .args(["branch", &temp_name])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Error creando rama temporal: {}", e))?;
+            if !create_temp.status.success() {
+                let stderr = String::from_utf8_lossy(&create_temp.stderr).to_string();
+                return Err(format!("Error al crear la rama temporal '{}': {}", temp_name, stderr));
+            }
+
+            let checkout_temp = create_git_command()
+                .args(["checkout", &temp_name])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Error cambiando a rama temporal: {}", e))?;
+            if !checkout_temp.status.success() {
+                let stderr = String::from_utf8_lossy(&checkout_temp.stderr).to_string();
+                return Err(format!("Error al cambiar a la rama temporal '{}': {}", temp_name, stderr));
+            }
+            log::info!("Rama temporal '{}' creada y checkout realizado", temp_name);
+        }
+
+        let local_exists = create_git_command()
+            .args(["show-ref", "--verify", "--quiet", &format!("refs/heads/{}", branch_name)])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error verificando rama local: {}", e))?;
+
+        if local_exists.status.success() {
+            let delete_output = create_git_command()
+                .args(["branch", "-D", &branch_name])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Error eliminando rama local: {}", e))?;
+            if !delete_output.status.success() {
+                let stderr = String::from_utf8_lossy(&delete_output.stderr).to_string();
+                return Err(format!("Error al eliminar la rama local '{}': {}", branch_name, stderr));
+            }
+            log::info!("Rama local '{}' eliminada", branch_name);
+        }
+
+        let create_output = create_git_command()
+            .args(["branch", &branch_name, &remote_ref])
+            .current_dir(&repo_path)
+            .output()
+            .map_err(|e| format!("Error creando rama desde remoto: {}", e))?;
+        if !create_output.status.success() {
+            let stderr = String::from_utf8_lossy(&create_output.stderr).to_string();
+            return Err(format!("Error al crear la rama '{}' desde '{}': {}", branch_name, remote_ref, stderr));
+        }
+
+        if let Some(temp) = &temp_branch {
+            let checkout_back = create_git_command()
+                .args(["checkout", &branch_name])
+                .current_dir(&repo_path)
+                .output()
+                .map_err(|e| format!("Error volviendo a la rama '{}': {}", branch_name, e))?;
+            if !checkout_back.status.success() {
+                let stderr = String::from_utf8_lossy(&checkout_back.stderr).to_string();
+                return Err(format!("Error al volver a la rama '{}': {}", branch_name, stderr));
+            }
+            log::info!("Vuelto a la rama '{}', temporal '{}' pendiente de borrado", branch_name, temp);
+        }
+
+        Ok(SyncBranchResult {
+            message: format!("Rama '{}' sincronizada con '{}'.", branch_name, remote_ref),
+            temp_branch,
         })
     })
     .await

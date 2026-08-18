@@ -18,6 +18,7 @@ const shortcuts: ShortcutItem[] = [
   { keys: 'Ctrl + P', label: 'Buscador de repositorios' },
   { keys: 'Ctrl + O', label: 'Agregar repositorio' },
   { keys: 'Ctrl + Shift + S', label: 'Abrir modal de sincronización' },
+  { keys: 'Ctrl + Shift + H', label: 'Homologar ramas' },
   { keys: 'Ctrl + E', label: 'Cherry-pick rápido' },
   { keys: 'Ctrl + Shift + D', label: 'Comparar ramas' },
   { keys: 'Ctrl + L', label: 'Buscador de ramas' },

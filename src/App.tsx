@@ -27,6 +27,7 @@ import { QuickRepoModal } from './components/QuickRepoModal';
 import { CherryPickQuickModal } from './components/CherryPickQuickModal';
 import { ShortcutHelpModal } from './components/ShortcutHelpModal';
 import { SyncModal } from './components/SyncModal';
+import { HomologarModal } from './components/HomologarModal';
 import { QuickBranchModal } from './components/QuickBranchModal';
 import { BatchDeleteBranchesModal } from './components/BatchDeleteBranchesModal';
 import { useRepository } from './hooks/useRepository';
@@ -80,6 +81,7 @@ function App() {
   const [showCherryQuick, setShowCherryQuick] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showHomologarModal, setShowHomologarModal] = useState(false);
   const [showQuickBranch, setShowQuickBranch] = useState(false);
   const [showBatchDelete, setShowBatchDelete] = useState(false);
 
@@ -257,6 +259,7 @@ function App() {
     { key: 'Tab', ctrl: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'changes'; return t === 'changes' ? 'history' : t === 'history' ? 'stash' : t === 'stash' ? 'tags' : t === 'tags' ? 'actions' : 'changes'; }) },
     { key: 'Tab', ctrl: true, shift: true, handler: () => setLeftTab(t => { if (t === 'graph') return 'actions'; return t === 'actions' ? 'tags' : t === 'tags' ? 'stash' : t === 'stash' ? 'history' : t === 'history' ? 'changes' : 'actions'; }) },
     { key: 'e', ctrl: true, handler: () => { if (repoPath) setShowCherryQuick(true); } },
+    { key: 'h', ctrl: true, shift: true, handler: () => { if (repoPath) setShowHomologarModal(v => !v); } },
     { key: 's', ctrl: true, shift: true, handler: () => { if (repoPath) setShowSyncModal(true); } },
     { key: 'd', ctrl: true, shift: true, handler: () => { if (repoPath) window.dispatchEvent(new CustomEvent('open-compare-branches')); } },
     { key: 'l', ctrl: true, handler: () => { if (repoPath) setShowQuickBranch(v => !v); } },
@@ -280,6 +283,7 @@ function App() {
           onShowGraph={() => setLeftTab(t => t === 'graph' ? 'changes' : 'graph')}
           showActions={leftTab === 'actions'}
           onShowActions={() => setLeftTab(t => t === 'actions' ? 'changes' : 'actions')}
+          onHomologar={() => { if (repoPath) setShowHomologarModal(true); }}
         />
 
         {showAddModal && (
@@ -527,6 +531,7 @@ function App() {
             currentBranch={repoInfo?.current_branch}
             onClose={() => setShowCherryQuick(false)}
             onRefresh={refreshAll}
+            onConflictOperation={handleConflictDetected}
           />
         )}
 
@@ -540,6 +545,16 @@ function App() {
             currentBranch={repoInfo.current_branch}
             onClose={() => setShowSyncModal(false)}
             onRefresh={refreshAll}
+          />
+        )}
+
+        {showHomologarModal && repoPath && (
+          <HomologarModal
+            repoPath={repoPath}
+            currentBranch={repoInfo?.current_branch ?? ''}
+            onClose={() => setShowHomologarModal(false)}
+            onRefresh={refreshAll}
+            onConflictOperation={handleConflictDetected}
           />
         )}
 
