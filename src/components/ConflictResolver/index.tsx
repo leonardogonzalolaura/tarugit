@@ -4,6 +4,7 @@ import { useSyncScroll } from './hooks/useSyncScroll';
 import { useConflictOperations } from './hooks/useConflictOperations';
 import { ThreeWayMergeViewer } from './components/ThreeWayMergeViewer';
 import { PostResolveModal } from './components/PostResolveModal';
+import { ConflictFocusModal } from './components/ConflictFocusModal';
 import { ConflictFileBlock, OperationContext, LayoutMode } from './ConflictResolver.types';
 import { getConflictStats } from './utils/conflictParser';
 
@@ -26,9 +27,12 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
   const [blocks, setBlocks] = useState<ConflictFileBlock[]>([]);
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
   const [layout, setLayout] = useState<LayoutMode>('side');
+  const [showFocusModal, setShowFocusModal] = useState(false);
+  const [focusIndex, setFocusIndex] = useState(0);
+  const [activeDotIndex, setActiveDotIndex] = useState(0);
 
   const { loading: loadingData, error, loadConflict } = useConflictData(repoPath, filePath, setBlocks);
-  const { oursRef, resultRef, theirsRef, scrollInfo, syncScroll, jumpToBlock } = useSyncScroll();
+  const { oursRef, resultRef, theirsRef, syncScroll, jumpToBlock } = useSyncScroll(layout);
   const { saveResolution, postAction, loading: saving, showPostModal, setShowPostModal, busy } = useConflictOperations(repoPath, filePath);
 
   useEffect(() => {
@@ -97,17 +101,25 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
         />
       )}
 
+      {showFocusModal && (
+        <ConflictFocusModal
+          blocks={blocks}
+          currentIndex={focusIndex}
+          onClose={() => setShowFocusModal(false)}
+          onSelectConflict={setFocusIndex}
+          onAcceptOurs={acceptOurs}
+          onAcceptTheirs={acceptTheirs}
+          onAcceptBoth={acceptBoth}
+          onIgnore={ignoreBlock}
+          onUpdateContent={updateContent}
+        />
+      )}
+
       <div className="cr">
         <div className="cr-header">
           <div className="cr-header-left">
             <span className="cr-file-icon"><SvgBolt /></span>
             <span className="cr-filename">{filename}</span>
-            <div className="cr-progress">
-              <div className="cr-progress-bar-bg">
-                <div className={`cr-progress-bar-fill${allResolved ? ' done' : ''}`} style={{ width: `${(resolvedCount / totalConflicts) * 100}%` }} />
-              </div>
-              <span className="cr-progress-label">{resolvedCount}/{totalConflicts}</span>
-            </div>
           </div>
           <div className="cr-header-actions">
             <div style={{ display: 'flex', gap: 2, marginRight: 6, borderRight: '1px solid var(--border)', paddingRight: 6 }}>
@@ -130,13 +142,42 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
           </div>
         </div>
 
+        <div className="cr-dots-bar">
+          <div className="cr-dots-row">
+            {blocks.filter(b => b.type === 'conflict').map((block, idx) => {
+              const dotPending = !block.resolution || block.resolution === 'pending';
+              return (
+                <div
+                  key={block.id}
+                  className={`cr-dot ${dotPending ? 'pending' : 'resolved'}${idx === activeDotIndex ? ' active' : ''}`}
+                  onClick={() => {
+                    setActiveDotIndex(idx);
+                    jumpToBlock(block.id);
+                  }}
+                  title={`Conflicto ${idx + 1}: ${dotPending ? 'Pendiente' : 'Resuelto'}`}
+                />
+              );
+            })}
+          </div>
+          <span
+            className="cr-dots-label clickable"
+            onClick={() => {
+              const conflictBlocks = blocks.filter(b => b.type === 'conflict');
+              const firstPendingIdx = conflictBlocks.findIndex(b => !b.resolution || b.resolution === 'pending');
+              setFocusIndex(firstPendingIdx >= 0 ? firstPendingIdx : 0);
+              setShowFocusModal(true);
+            }}
+            title="Ver conflictos en detalle"
+          >
+            {resolvedCount}/{totalConflicts}
+          </span>
+        </div>
+
         <ThreeWayMergeViewer
           layout={layout}
           blocks={blocks}
           scrollRefs={{ oursRef, resultRef, theirsRef }}
-          scrollInfo={scrollInfo}
           syncScroll={syncScroll}
-          jumpToBlock={jumpToBlock}
           hoveredBlockId={hoveredBlockId}
           onHoverChange={setHoveredBlockId}
           onAcceptOurs={acceptOurs}

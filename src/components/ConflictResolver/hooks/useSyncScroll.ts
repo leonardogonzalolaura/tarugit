@@ -1,7 +1,7 @@
 import { useRef, useCallback, useState, RefObject } from 'react';
-import { ScrollInfo } from '../ConflictResolver.types';
+import { ScrollInfo, LayoutMode } from '../ConflictResolver.types';
 
-export function useSyncScroll() {
+export function useSyncScroll(layout: LayoutMode = 'side') {
   const oursRef = useRef<HTMLDivElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const theirsRef = useRef<HTMLDivElement>(null);
@@ -17,6 +17,16 @@ export function useSyncScroll() {
       if (isSyncing.current) return;
       const src = sourceRef.current;
       if (!src) return;
+
+      if (layout === 'side') {
+        setScrollInfo({
+          scrollTop: src.scrollTop,
+          totalHeight: src.scrollHeight,
+          containerHeight: src.clientHeight
+        });
+        return;
+      }
+
       isSyncing.current = true;
       const scrollTop = src.scrollTop;
       for (const ref of [oursRef, resultRef, theirsRef]) {
@@ -30,10 +40,16 @@ export function useSyncScroll() {
       });
       isSyncing.current = false;
     };
-  }, []);
+  }, [layout]);
 
   const jumpToBlock = useCallback((blockId: string) => {
-    for (const ref of [oursRef, resultRef, theirsRef]) {
+    const refsToSearch = layout === 'side'
+      ? [oursRef]
+      : layout === 'diff-result'
+        ? [oursRef, resultRef]
+        : [oursRef, resultRef, theirsRef];
+
+    for (const ref of refsToSearch) {
       const container = ref.current;
       if (!container) continue;
 
@@ -48,12 +64,13 @@ export function useSyncScroll() {
       }
 
       container.scrollTop = Math.max(0, offsetTop - 16);
+      break;
     }
 
-    if (resultRef.current) {
-      setScrollInfo(prev => ({ ...prev, scrollTop: resultRef.current!.scrollTop }));
+    if (oursRef.current) {
+      setScrollInfo(prev => ({ ...prev, scrollTop: oursRef.current!.scrollTop }));
     }
-  }, []);
+  }, [layout]);
 
   return { oursRef, resultRef, theirsRef, scrollInfo, syncScroll, jumpToBlock };
 }

@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
-import { ConflictFileBlock, LayoutMode, ScrollInfo } from '../ConflictResolver.types';
+import { ConflictFileBlock, LayoutMode } from '../ConflictResolver.types';
 import { ConflictBlockRow } from './ConflictBlockRow';
-import { ConflictMinimap } from './ConflictMinimap';
 
 interface ThreeWayMergeViewerProps {
   layout: LayoutMode;
@@ -11,9 +10,7 @@ interface ThreeWayMergeViewerProps {
     resultRef: React.RefObject<HTMLDivElement | null>;
     theirsRef: React.RefObject<HTMLDivElement | null>;
   };
-  scrollInfo: ScrollInfo;
   syncScroll: (ref: React.RefObject<HTMLDivElement | null>) => () => void;
-  jumpToBlock: (blockId: string) => void;
   hoveredBlockId: string | null;
   onHoverChange: (id: string | null) => void;
   onAcceptOurs: (blockId: string) => void;
@@ -71,13 +68,51 @@ function renderBlocks(
   });
 }
 
+function renderBlockCell(
+  block: ConflictFileBlock,
+  paneType: 'ours' | 'result' | 'theirs',
+  conflictNum: number,
+  totalConflicts: number,
+  hoveredBlockId: string | null,
+  onHoverChange: (id: string | null) => void,
+  onAcceptOurs: (blockId: string) => void,
+  onAcceptTheirs: (blockId: string) => void,
+  onAcceptBoth: (blockId: string) => void,
+  onIgnore: (blockId: string) => void,
+  onUpdateContent: (blockId: string, value: string) => void
+) {
+  const isHovered = hoveredBlockId === block.id;
+
+  if (block.type === 'clean') {
+    return (
+      <div className="cr-block clean" style={{ opacity: isHovered ? .4 : 1 }}>
+        <div className="cr-block-text">{block.content}</div>
+      </div>
+    );
+  }
+
+  return (
+    <ConflictBlockRow
+      block={block}
+      conflictNumber={conflictNum}
+      totalConflicts={totalConflicts}
+      onHoverEnter={() => onHoverChange(block.id)}
+      onHoverLeave={() => onHoverChange(null)}
+      onAcceptOurs={() => onAcceptOurs(block.id)}
+      onAcceptTheirs={() => onAcceptTheirs(block.id)}
+      onAcceptBoth={() => onAcceptBoth(block.id)}
+      onIgnore={() => onIgnore(block.id)}
+      onUpdateContent={(val) => onUpdateContent(block.id, val)}
+      pane={paneType}
+    />
+  );
+}
+
 export function ThreeWayMergeViewer({
   layout,
   blocks,
   scrollRefs,
-  scrollInfo,
   syncScroll,
-  jumpToBlock,
   hoveredBlockId,
   onHoverChange,
   onAcceptOurs,
@@ -103,13 +138,20 @@ export function ThreeWayMergeViewer({
     syncScroll(theirsRef)();
   }, [syncScroll, layout]);
 
-  const renderPane = (paneType: 'ours' | 'result' | 'theirs', ref: React.RefObject<HTMLDivElement | null>, onScroll: () => void) => (
-    <div ref={ref} onScroll={onScroll} className={`cr-pane-body ${paneType}`}>
-      {renderBlocks(blocks, paneType, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
-    </div>
-  );
+  const conflictNumberMap = new Map<string, number>();
+  let conflictCount = 0;
+  for (const block of blocks) {
+    if (block.type === 'conflict') conflictCount++;
+    conflictNumberMap.set(block.id, conflictCount);
+  }
+  const totalConflicts = conflictCount;
 
   if (layout === 'diff-result') {
+    const localType = isRebase ? 'theirs' : 'ours';
+    const remoteType = isRebase ? 'ours' : 'theirs';
+    const localRef = isRebase ? theirsRef : oursRef;
+    const localScroll = isRebase ? onScrollTheirs : onScrollOurs;
+
     return (
       <div className="cr-layout-stacked">
         <div className="cr-diff-row-headers" style={{
@@ -120,12 +162,22 @@ export function ThreeWayMergeViewer({
           <div className="cr-pane-header theirs">Cambios Entrantes <SvgArrowRight /></div>
         </div>
 
-        <div className="cr-diff-row" style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px',
-          background: 'var(--border)', overflow: 'hidden'
-        }}>
-          {renderPane(isRebase ? 'theirs' : 'ours', isRebase ? theirsRef : oursRef, isRebase ? onScrollTheirs : onScrollOurs)}
-          {renderPane(isRebase ? 'ours' : 'theirs', isRebase ? oursRef : theirsRef, isRebase ? onScrollOurs : onScrollTheirs)}
+        <div className="cr-diff-row" style={{ flex: 1, overflow: 'hidden' }}>
+          <div ref={localRef} onScroll={localScroll} className="cr-diff-scroll">
+            <div className="cr-diff-grid">
+              {blocks.flatMap((block) => {
+                const cn = conflictNumberMap.get(block.id) || 0;
+                return [
+                  <div key={`${block.id}-local`} className="cr-cell local">
+                    {renderBlockCell(block, localType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                  </div>,
+                  <div key={`${block.id}-remote`} className="cr-cell remote">
+                    {renderBlockCell(block, remoteType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                  </div>
+                ];
+              })}
+            </div>
+          </div>
         </div>
 
         <div className="cr-pane-header result" style={{ flexShrink: 0 }}>
@@ -133,20 +185,9 @@ export function ThreeWayMergeViewer({
           <span className="editable-hint">editable</span>
         </div>
 
-        <div className="cr-result-row" style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-          <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ paddingRight: 36, height: '100%', boxSizing: 'border-box' }}>
+        <div className="cr-result-row" style={{ flex: 1, overflow: 'hidden' }}>
+          <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ height: '100%', boxSizing: 'border-box' }}>
             {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
-          </div>
-          <div className="cr-minimap right">
-            <div className="cr-minimap-inner">
-              <ConflictMinimap
-                blocks={blocks}
-                totalHeight={scrollInfo.totalHeight}
-                scrollTop={scrollInfo.scrollTop}
-                containerHeight={scrollInfo.containerHeight}
-                onJump={jumpToBlock}
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -168,47 +209,39 @@ export function ThreeWayMergeViewer({
         <div className="cr-pane-header ours" style={{ flexShrink: 0 }}>
           <SvgArrowLeft /> {topLabel}
         </div>
-        <div className="cr-vert-section">{renderPane(topContent as 'ours' | 'theirs', topRef, topScroll)}</div>
+        <div className="cr-vert-section">
+          <div ref={topRef} onScroll={topScroll} className={`cr-pane-body ${topContent}`}>
+            {renderBlocks(blocks, topContent as 'ours' | 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+          </div>
+        </div>
 
         <div className="cr-pane-header theirs" style={{ flexShrink: 0 }}>
           {bottomLabel} <SvgArrowRight />
         </div>
-        <div className="cr-vert-section">{renderPane(bottomContent as 'ours' | 'theirs', bottomRef, bottomScroll)}</div>
+        <div className="cr-vert-section">
+          <div ref={bottomRef} onScroll={bottomScroll} className={`cr-pane-body ${bottomContent}`}>
+            {renderBlocks(blocks, bottomContent as 'ours' | 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+          </div>
+        </div>
 
         <div className="cr-pane-header result" style={{ flexShrink: 0 }}>
           <SvgPencil /> Resultado Fusionado
           <span className="editable-hint">editable</span>
         </div>
-        <div className="cr-vert-section" style={{ position: 'relative' }}>
-          <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ paddingRight: 36, height: '100%', boxSizing: 'border-box' }}>
+        <div className="cr-vert-section">
+          <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ height: '100%', boxSizing: 'border-box' }}>
             {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
-          </div>
-          <div className="cr-minimap right">
-            <div className="cr-minimap-inner">
-              <ConflictMinimap
-                blocks={blocks}
-                totalHeight={scrollInfo.totalHeight}
-                scrollTop={scrollInfo.scrollTop}
-                containerHeight={scrollInfo.containerHeight}
-                onJump={jumpToBlock}
-              />
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // layout === 'side' (default)
-  const leftPaneContent = isRebase ? renderBlocks(blocks, 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)
-    : renderBlocks(blocks, 'ours', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent);
-  const rightPaneContent = isRebase ? renderBlocks(blocks, 'ours', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)
-    : renderBlocks(blocks, 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent);
-
+  // layout === 'side' (default) — row-based aligned rendering
+  const leftPaneType = isRebase ? 'theirs' : 'ours';
+  const rightPaneType = isRebase ? 'ours' : 'theirs';
   const leftRef = isRebase ? theirsRef : oursRef;
-  const rightRef = isRebase ? oursRef : theirsRef;
   const onScrollLeft = isRebase ? onScrollTheirs : onScrollOurs;
-  const onScrollRight = isRebase ? onScrollOurs : onScrollTheirs;
 
   return (
     <>
@@ -224,25 +257,23 @@ export function ThreeWayMergeViewer({
         <div className="cr-pane-header theirs">Cambios Entrantes <SvgArrowRight /></div>
       </div>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', flex: 1,
-        overflow: 'hidden', gap: '1px', background: 'var(--border)', position: 'relative'
-      }}>
-        <div ref={leftRef} onScroll={onScrollLeft} className="cr-pane-body ours">{leftPaneContent}</div>
-        <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ paddingRight: 38 }}>
-          {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
-        </div>
-        <div ref={rightRef} onScroll={onScrollRight} className="cr-pane-body theirs">{rightPaneContent}</div>
-
-        <div className="cr-minimap">
-          <div className="cr-minimap-inner">
-            <ConflictMinimap
-              blocks={blocks}
-              totalHeight={scrollInfo.totalHeight}
-              scrollTop={scrollInfo.scrollTop}
-              containerHeight={scrollInfo.containerHeight}
-              onJump={jumpToBlock}
-            />
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div ref={leftRef} onScroll={onScrollLeft} className="cr-merge-scroll">
+          <div className="cr-merge-grid">
+            {blocks.flatMap((block) => {
+              const cn = conflictNumberMap.get(block.id) || 0;
+              return [
+                <div key={`${block.id}-ours`} className="cr-cell ours">
+                  {renderBlockCell(block, leftPaneType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                </div>,
+                <div key={`${block.id}-result`} className="cr-cell result">
+                  {renderBlockCell(block, 'result', cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                </div>,
+                <div key={`${block.id}-theirs`} className="cr-cell theirs">
+                  {renderBlockCell(block, rightPaneType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                </div>
+              ];
+            })}
           </div>
         </div>
       </div>
