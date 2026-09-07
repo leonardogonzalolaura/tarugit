@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useConflictData } from './hooks/useConflictData';
 import { useSyncScroll } from './hooks/useSyncScroll';
 import { useConflictOperations } from './hooks/useConflictOperations';
@@ -42,27 +42,56 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
   const { resolvedCount, totalConflicts } = getConflictStats(blocks);
   const allResolved = resolvedCount === totalConflicts;
 
-  const updateBlock = (blockId: string, updater: (block: ConflictFileBlock) => ConflictFileBlock) => {
+  const updateBlock = useCallback((blockId: string, updater: (block: ConflictFileBlock) => ConflictFileBlock) => {
     setBlocks(prev => prev.map(b => b.id === blockId ? updater(b) : b));
-  };
+  }, []);
 
-  const acceptOurs = (blockId: string) => updateBlock(blockId, b => ({ ...b, content: b.oursContent || '', resolution: 'ours' }));
-  const acceptTheirs = (blockId: string) => updateBlock(blockId, b => ({ ...b, content: b.theirsContent || '', resolution: 'theirs' }));
-  const acceptBoth = (blockId: string) => updateBlock(blockId, b => ({ ...b, content: [b.oursContent, b.theirsContent].filter(Boolean).join('\n'), resolution: 'both' }));
-  const ignoreBlock = (blockId: string) => updateBlock(blockId, b => ({ ...b, content: '', resolution: 'ignore' }));
-  const updateContent = (blockId: string, value: string) => updateBlock(blockId, b => ({ ...b, content: value, resolution: 'custom' }));
+  const acceptOurs = useCallback((blockId: string) => updateBlock(blockId, b => ({ ...b, content: b.oursContent || '', resolution: 'ours' })), [updateBlock]);
+  const acceptTheirs = useCallback((blockId: string) => updateBlock(blockId, b => ({ ...b, content: b.theirsContent || '', resolution: 'theirs' })), [updateBlock]);
+  const acceptBoth = useCallback((blockId: string) => updateBlock(blockId, b => ({ ...b, content: [b.oursContent, b.theirsContent].filter(Boolean).join('\n'), resolution: 'both' })), [updateBlock]);
+  const ignoreBlock = useCallback((blockId: string) => updateBlock(blockId, b => ({ ...b, content: '', resolution: 'ignore' })), [updateBlock]);
+  const updateContent = useCallback((blockId: string, value: string) => updateBlock(blockId, b => ({ ...b, content: value, resolution: 'custom' })), [updateBlock]);
 
-  const handleSave = async () => {
-    const result = await saveResolution(blocks);
+  const handleSave = useCallback(async () => {
+    // Flush: si hay un textarea enfocado con edición pendiente (debounce), forzar blur y leer DOM
+    const active = document.activeElement as HTMLElement | null;
+    if (active instanceof HTMLTextAreaElement && (active.classList.contains('cr-block-textarea') || active.classList.contains('cr-focus-textarea'))) {
+      active.blur();
+      await new Promise(r => setTimeout(r, 0));
+    }
+    // Lee valores directamente del DOM para no perder ediciones aún no sincronizadas (450ms debounce)
+    let flushedBlocks = blocks;
+    const domValues = new Map<string, string>();
+    document.querySelectorAll('[data-conflict-block]').forEach(el => {
+      const id = el.getAttribute('data-conflict-block');
+      const ta = el.querySelector('textarea.cr-block-textarea') as HTMLTextAreaElement | null;
+      if (id && ta) {
+        const b = blocks.find(x => x.id === id);
+        if (b && ta.value !== b.content) domValues.set(id, ta.value);
+      }
+    });
+    const focusTa = document.querySelector('.cr-focus-textarea') as HTMLTextAreaElement | null;
+    if (focusTa) {
+      const conflictBlocks = blocks.filter(b => b.type === 'conflict');
+      const cur = conflictBlocks[focusIndex];
+      if (cur && focusTa.value !== cur.content) domValues.set(cur.id, focusTa.value);
+    }
+    if (domValues.size > 0) {
+      flushedBlocks = blocks.map(b => domValues.has(b.id) ? { ...b, content: domValues.get(b.id)!, resolution: 'custom' as const } : b);
+      setBlocks(flushedBlocks);
+      // Espera un tick para que el estado se asiente antes de guardar
+      await new Promise(r => setTimeout(r, 0));
+    }
+    const result = await saveResolution(flushedBlocks);
     if (result.success && result.stillConflicted === 0) {
       // Modal ya se muestra automáticamente
     } else if (result.success && result.stillConflicted > 0) {
       alert(result.message);
       onResolved();
     }
-  };
+  }, [blocks, saveResolution, onResolved, focusIndex]);
 
-  const handlePostAction = async (action: 'continue' | 'abort' | 'done') => {
+  const handlePostAction = useCallback(async (action: 'continue' | 'abort' | 'done') => {
     const result = await postAction(action, operationContext);
     if (result.success) {
       setShowPostModal(false);
@@ -72,7 +101,7 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
       setShowPostModal(false);
       onResolved();
     }
-  };
+  }, [postAction, operationContext, setShowPostModal, onResolved]);
 
   if (loadingData && !blocks.length) {
     return <div className="diff-loading"><span className="spinner" /> Cargando conflictos...</div>;

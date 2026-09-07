@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { ConflictFileBlock } from '../ConflictResolver.types';
 
 interface ConflictFocusModalProps {
@@ -45,6 +45,10 @@ export function ConflictFocusModal({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // No interceptar flechas si estamos editando el textarea
+      const ae = document.activeElement as HTMLElement | null;
+      const isEditing = ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-focus-textarea');
+      if (isEditing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') goPrev();
       if (e.key === 'ArrowRight') goNext();
@@ -53,10 +57,39 @@ export function ConflictFocusModal({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, goPrev, goNext]);
 
+  // Estado local: mientras está enfocado NO sincronizamos al padre (evita el rebote a los ~450ms)
+  const [localValue, setLocalValue] = useState(current?.content ?? '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isFocusedRef = useRef(false);
+  const latestValueRef = useRef(current?.content ?? '');
+
+  useEffect(() => {
+    if (!isFocusedRef.current) {
+      setLocalValue(current?.content ?? '');
+      latestValueRef.current = current?.content ?? '';
+    }
+  }, [current?.id, current?.content]);
+
   if (!current) return null;
 
   const isPending = !current.resolution || current.resolution === 'pending';
   const statusClass = isPending ? 'pending' : 'resolved';
+
+  const flushToParent = (val: string) => {
+    if (val !== current.content) onUpdateContent(current.id, val);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    latestValueRef.current = val;
+    setLocalValue(val);
+    // No flush al padre aquí — solo en blur/guardar — para no provocar re-render que bota el foco
+  };
+
+  const handleBlur = () => {
+    isFocusedRef.current = false;
+    flushToParent(latestValueRef.current);
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -98,8 +131,13 @@ export function ConflictFocusModal({
 
           <div className="cr-focus-cell result">
             <textarea
-              value={current.content}
-              onChange={e => onUpdateContent(current.id, e.target.value)}
+              ref={textareaRef}
+              value={localValue}
+              onChange={handleChange}
+              onFocus={() => { isFocusedRef.current = true; }}
+              onBlur={handleBlur}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
               className="cr-focus-textarea"
             />
           </div>

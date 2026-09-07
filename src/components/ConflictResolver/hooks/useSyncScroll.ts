@@ -14,6 +14,11 @@ export function useSyncScroll(layout: LayoutMode = 'side') {
 
   const syncScroll = useCallback((sourceRef: RefObject<HTMLDivElement | null>) => {
     return () => {
+      // No sincronizar mientras el usuario edita el Resultado: evita re-renders que roban foco
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae?.tagName === 'TEXTAREA' && (ae.classList.contains('cr-block-textarea') || ae.classList.contains('cr-focus-textarea'))) {
+        return;
+      }
       if (isSyncing.current) return;
       const src = sourceRef.current;
       if (!src) return;

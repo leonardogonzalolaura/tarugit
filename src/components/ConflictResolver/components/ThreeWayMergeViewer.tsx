@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { ConflictFileBlock, LayoutMode } from '../ConflictResolver.types';
 import { ConflictBlockRow } from './ConflictBlockRow';
 
@@ -127,24 +127,33 @@ export function ThreeWayMergeViewer({
 
   const onScrollOurs = useCallback(() => {
     if (layout === 'vertical') return;
+    // No robar foco si el activeElement es un textarea del resultado
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-block-textarea')) return;
     syncScroll(oursRef)();
   }, [syncScroll, layout]);
   const onScrollResult = useCallback(() => {
     if (layout !== 'side') return;
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-block-textarea')) return;
     syncScroll(resultRef)();
   }, [syncScroll, layout]);
   const onScrollTheirs = useCallback(() => {
     if (layout === 'vertical') return;
+    const ae = document.activeElement as HTMLElement | null;
+    if (ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-block-textarea')) return;
     syncScroll(theirsRef)();
   }, [syncScroll, layout]);
 
-  const conflictNumberMap = new Map<string, number>();
-  let conflictCount = 0;
-  for (const block of blocks) {
-    if (block.type === 'conflict') conflictCount++;
-    conflictNumberMap.set(block.id, conflictCount);
-  }
-  const totalConflicts = conflictCount;
+  const { conflictNumberMap, totalConflicts } = useMemo(() => {
+    const map = new Map<string, number>();
+    let count = 0;
+    for (const block of blocks) {
+      if (block.type === 'conflict') count++;
+      map.set(block.id, count);
+    }
+    return { conflictNumberMap: map, totalConflicts: count };
+  }, [blocks]);
 
   if (layout === 'diff-result') {
     const localType = isRebase ? 'theirs' : 'ours';

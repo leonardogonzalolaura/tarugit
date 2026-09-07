@@ -91,10 +91,19 @@ function App() {
 
   useEffect(() => {
     if (!sidebarCollapsed && repoInfo && leftTab === 'changes') {
-      const timer = setTimeout(() => fileListRef.current?.focus(), 50);
+      // No robar foco si se está resolviendo un conflicto o si el usuario está editando
+      if (resolvingConflictFile) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae?.tagName === 'TEXTAREA' || ae?.tagName === 'INPUT' || ae?.isContentEditable) return;
+      const timer = setTimeout(() => {
+        const ae2 = document.activeElement as HTMLElement | null;
+        if (ae2?.tagName === 'TEXTAREA' || ae2?.tagName === 'INPUT' || ae2?.isContentEditable) return;
+        if (resolvingConflictFile) return;
+        fileListRef.current?.focus();
+      }, 50);
       return () => clearTimeout(timer);
     }
-  }, [sidebarCollapsed, repoInfo, leftTab]);
+  }, [sidebarCollapsed, repoInfo, leftTab, resolvingConflictFile]);
 
   useEffect(() => {
     if (!repoPath) return;
