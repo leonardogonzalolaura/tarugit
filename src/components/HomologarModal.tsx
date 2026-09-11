@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { BranchInfo } from '../types';
 import { toast } from './Toast';
@@ -20,7 +21,9 @@ function BranchCombo({ branches, value, onChange, exclude }: {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const [hl, setHl] = useState(0);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number }>({ top: 0, left: 0, width: 0, maxHeight: 260 });
   const ref = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const list = branches.filter(b => {
     if (exclude === undefined) return true;
@@ -33,11 +36,38 @@ function BranchCombo({ branches, value, onChange, exclude }: {
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current && ref.current.contains(target)) return;
+      if (dropdownRef.current && dropdownRef.current.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const update = () => {
+      if (!ref.current) return;
+      const r = ref.current.getBoundingClientRect();
+      const bottomSpace = window.innerHeight - r.bottom - 8;
+      const topSpace = r.top - 8;
+      let top = r.bottom + 4;
+      let maxHeight = Math.min(260, Math.max(120, bottomSpace));
+      if (bottomSpace < 180 && topSpace > bottomSpace) {
+        maxHeight = Math.min(260, Math.max(120, topSpace - 4));
+        top = Math.max(8, r.top - maxHeight - 4);
+      }
+      setPos({ top, left: r.left, width: r.width, maxHeight });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open, filtered.length]);
 
   return (
     <div style={{ flex: 1, position: 'relative', minWidth: 0 }} ref={ref}>
@@ -48,8 +78,12 @@ function BranchCombo({ branches, value, onChange, exclude }: {
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{value || 'Seleccionar...'}</span>
         <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>▼</span>
       </div>
-      {open && (
-        <div className="pr-combo-dropdown" style={{ top: '100%', bottom: 'auto', marginTop: 4 }}>
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="pr-combo-dropdown"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight, zIndex: 10000, marginTop: 0 }}
+        >
           <input
             className="pr-combo-search"
             placeholder="Filtrar ramas..."
@@ -77,7 +111,8 @@ function BranchCombo({ branches, value, onChange, exclude }: {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
