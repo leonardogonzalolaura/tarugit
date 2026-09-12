@@ -135,12 +135,14 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
           blocks={blocks}
           currentIndex={focusIndex}
           onClose={() => setShowFocusModal(false)}
-          onSelectConflict={setFocusIndex}
+          onSelectConflict={(idx) => { setFocusIndex(idx); setActiveDotIndex(idx); }}
           onAcceptOurs={acceptOurs}
           onAcceptTheirs={acceptTheirs}
           onAcceptBoth={acceptBoth}
           onIgnore={ignoreBlock}
           onUpdateContent={updateContent}
+          allResolved={allResolved}
+          onSaveAndContinue={() => { setShowFocusModal(false); handleSave(); }}
         />
       )}
 
@@ -193,7 +195,9 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
             onClick={() => {
               const conflictBlocks = blocks.filter(b => b.type === 'conflict');
               const firstPendingIdx = conflictBlocks.findIndex(b => !b.resolution || b.resolution === 'pending');
-              setFocusIndex(firstPendingIdx >= 0 ? firstPendingIdx : 0);
+              const idx = firstPendingIdx >= 0 ? firstPendingIdx : 0;
+              setFocusIndex(idx);
+              setActiveDotIndex(idx);
               setShowFocusModal(true);
             }}
             title="Ver conflictos en detalle"
@@ -201,6 +205,13 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
             {resolvedCount}/{totalConflicts}
           </span>
         </div>
+
+        {allResolved && totalConflicts > 0 && (
+          <div className="cr-all-done">
+            <span className="cr-all-done-icon">✓</span>
+            <span><strong>Se terminaron de resolver los conflictos</strong> — {resolvedCount}/{totalConflicts} resueltos · Pulsa <strong>Guardar Resolución</strong> para aplicar</span>
+          </div>
+        )}
 
         <ThreeWayMergeViewer
           layout={layout}
