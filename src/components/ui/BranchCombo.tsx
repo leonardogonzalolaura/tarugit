@@ -63,10 +63,11 @@ export function BranchCombo({ branches, value, onChange, exclude, placeholder = 
   }, [open, filtered.length]);
 
   return (
-    <div style={{ flex: 1, position: 'relative', minWidth: 0, opacity: disabled ? 0.6 : 1, pointerEvents: disabled ? 'none' : 'auto' }} ref={ref}>
+    <div style={{ flex: 1, position: 'relative', minWidth: 140, opacity: disabled ? 0.6 : 1, pointerEvents: disabled ? 'none' : 'auto' }} ref={ref}>
       <div
         className="pr-combo-trigger"
         onClick={() => { if (disabled) return; setOpen(v => !v); setFilter(''); setHl(0); }}
+        title={value || placeholder}
       >
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{value || placeholder}</span>
         <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>▼</span>

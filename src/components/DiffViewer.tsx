@@ -17,6 +17,7 @@ import { cpp } from '@codemirror/lang-cpp';
 import { php } from '@codemirror/lang-php';
 import * as Diff from 'diff';
 import { FileHierarchyModal } from './FileHierarchyModal';
+import { WelcomePanel } from './WelcomePanel';
 
 interface DiffViewerProps {
   selectedFile: string | null;
@@ -25,6 +26,9 @@ interface DiffViewerProps {
   onClose: () => void;
   repoPath?: string;
   onFileSaved?: () => void;
+  hasRepo?: boolean;
+  hasChanges?: boolean;
+  onAction?: (id: string) => void;
 }
 
 
@@ -153,7 +157,7 @@ function renderDiffLines(raw: string) {
   );
 }
 
-export function DiffViewer({ selectedFile, diffContent, loading, onClose, repoPath, onFileSaved }: DiffViewerProps) {
+export function DiffViewer({ selectedFile, diffContent, loading, onClose, repoPath, onFileSaved, hasRepo, hasChanges, onAction }: DiffViewerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [fileContent, setFileContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
@@ -351,33 +355,7 @@ npm-debug.log*
   }, [changes]);
 
   if (!selectedFile) {
-    return (
-      <div className="welcome-panel">
-        <div className="welcome-icon">
-          <span style={{ color: 'pink', fontSize: '48px' }}>♉</span>
-        </div>
-        <h2 className="welcome-title">Bienvenido a TaruGit</h2>
-        <p className="welcome-sub">Selecciona un archivo para ver sus cambios</p>
-        <div className="welcome-features">
-          <div className="feature-card">
-            <span>🎨</span>
-            <span>Diff con colores</span>
-          </div>
-          <div className="feature-card">
-            <span>🌿</span>
-            <span>Gestión de ramas</span>
-          </div>
-          <div className="feature-card">
-            <span>🕓</span>
-            <span>Historial de commits</span>
-          </div>
-          <div className="feature-card">
-            <span>⚡</span>
-            <span>Motor en Rust</span>
-          </div>
-        </div>
-      </div>
-    );
+    return <WelcomePanel hasRepo={hasRepo} hasChanges={hasChanges} onAction={onAction} />;
   }
 
   const parts = selectedFile.replace(/\\/g, '/').split('/');

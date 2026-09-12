@@ -489,6 +489,17 @@ function App() {
                 onClose={() => { setSelectedFile(null); setFileDiff(''); }}
                 repoPath={repoPath}
                 onFileSaved={handleFileSaved}
+                hasRepo={!!repoPath}
+                hasChanges={(repoInfo?.files?.length ?? 0) > 0}
+                onAction={(id) => {
+                  if (id === 'openRepo') setShowAddModal(true);
+                  else if (id === 'showHelp') setShowShortcutHelp(true);
+                  else if (id === 'createBranch' && repoPath) window.dispatchEvent(new CustomEvent('create-branch'));
+                  else if (id === 'homologar' && repoPath) setShowHomologarModal(true);
+                  else if (id === 'cherryPick' && repoPath) setShowCherryQuick(true);
+                  else if (id === 'quickBranch' && repoPath) setShowQuickBranch(true);
+                  else if (id === 'commit') { const el = document.querySelector<HTMLTextAreaElement>('.cp-input'); el?.focus(); }
+                }}
               />
             )}
 

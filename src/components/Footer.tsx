@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getVersion } from '@tauri-apps/api/app';
 
 interface FooterProps {
   repoPath: string;
@@ -9,10 +10,15 @@ interface FooterProps {
 
 export function Footer({ repoPath, currentBranch, fileCount = 0, onOpenShortcuts }: FooterProps) {
   const [time, setTime] = useState(new Date());
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    getVersion().then(v => setAppVersion(v)).catch(() => setAppVersion(null));
   }, []);
 
   const repoName = repoPath
@@ -66,7 +72,7 @@ export function Footer({ repoPath, currentBranch, fileCount = 0, onOpenShortcuts
           <span className="footer-brand-icon">♉</span>
           TaruGit
         </span>
-        <span className="footer-git-version">v0.1.7</span>
+        <span className="footer-git-version">{appVersion ? `v${appVersion}` : 'v0.2.3'}</span>
       </div>
 
       {/* Derecha: atajos, fecha y hora */}
