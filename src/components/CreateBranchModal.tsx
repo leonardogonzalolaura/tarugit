@@ -43,6 +43,10 @@ export function CreateBranchModal({ branches, currentBranch, onCreate, onClose }
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   useEffect(() => {
+    setSourceBranch(currentBranch);
+  }, [currentBranch]);
+
+  useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
@@ -77,7 +81,7 @@ export function CreateBranchModal({ branches, currentBranch, onCreate, onClose }
     }
   };
 
-  const localBranches = branches.filter(b => !b.is_remote && b.name !== sourceBranch);
+  const localBranches = branches.filter(b => !b.is_remote);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -130,8 +134,8 @@ export function CreateBranchModal({ branches, currentBranch, onCreate, onClose }
                 className="cbm-select"
                 style={{ flex: 1 }}
               >
-                <option value={currentBranch}>{currentBranch} (actual)</option>
-                {localBranches.map(b => (
+                <option value={currentBranch}>{currentBranch} (actual) — por defecto</option>
+                {localBranches.filter(b => b.name !== currentBranch).map(b => (
                   <option key={b.name} value={b.name}>{b.name}</option>
                 ))}
               </select>
