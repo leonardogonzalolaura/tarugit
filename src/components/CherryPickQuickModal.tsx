@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { BranchInfo } from '../types';
 import { toast } from './Toast';
+import { BranchCombo } from './ui/BranchCombo';
 
 interface CommitEntry {
   id: string;
@@ -16,72 +17,6 @@ interface CherryPickQuickModalProps {
   onClose: () => void;
   onRefresh?: () => void;
   onConflictOperation?: (op: { type: 'cherry-pick' }) => void;
-}
-
-function BranchCombo({ branches, value, onChange }: {
-  branches: string[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState('');
-  const [hl, setHl] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const filtered = filter
-    ? branches.filter(b => b.toLowerCase().includes(filter.toLowerCase()))
-    : branches;
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  return (
-    <div style={{ flex: 1, position: 'relative', minWidth: 0 }} ref={ref}>
-      <div
-        className="pr-combo-trigger"
-        onClick={() => { setOpen(v => !v); setFilter(''); setHl(0); }}
-      >
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>{value || 'Seleccionar...'}</span>
-        <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>▼</span>
-      </div>
-      {open && (
-        <div className="pr-combo-dropdown" style={{ top: 'auto', bottom: '100%', marginTop: 0, marginBottom: 4 }} >
-          <input
-            className="pr-combo-search"
-            placeholder="Filtrar ramas..."
-            value={filter}
-            autoFocus
-            onChange={e => { setFilter(e.target.value); setHl(0); }}
-            onKeyDown={e => {
-              if (e.key === 'ArrowDown') { e.preventDefault(); setHl(i => Math.min(i + 1, filtered.length - 1)); }
-              if (e.key === 'ArrowUp') { e.preventDefault(); setHl(i => Math.max(i - 1, 0)); }
-              if (e.key === 'Enter' && filtered[hl]) { onChange(filtered[hl]); setOpen(false); }
-              if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); }
-            }}
-          />
-          <div className="pr-combo-list">
-            {filtered.length === 0 ? (
-              <div className="pr-combo-empty">Sin resultados</div>
-            ) : (
-              filtered.map((b, i) => (
-                <div
-                  key={b}
-                  className={`pr-combo-item${i === hl ? ' hl' : ''}${b === value ? ' selected' : ''}`}
-                  onClick={() => { onChange(b); setOpen(false); }}
-                  onMouseEnter={() => setHl(i)}
-                >{b}</div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function CherryPickQuickModal({ repoPath, currentBranch, onClose, onRefresh, onConflictOperation }: CherryPickQuickModalProps) {

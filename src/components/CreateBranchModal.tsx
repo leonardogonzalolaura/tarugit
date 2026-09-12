@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BranchInfo } from '../types';
 import { toast } from './Toast';
+import { BranchCombo } from './ui/BranchCombo';
 
 interface CreateBranchModalProps {
   branches: BranchInfo[];
@@ -125,20 +126,14 @@ export function CreateBranchModal({ branches, currentBranch, onCreate, onClose }
           </div>
 
           <div>
-            <label className="cbm-label">Crear desde</label>
+            <label className="cbm-label">Crear desde — por defecto actual</label>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <select
+              <BranchCombo
+                branches={localBranches.map(b => b.name)}
                 value={sourceBranch}
-                onChange={e => setSourceBranch(e.target.value)}
+                onChange={setSourceBranch}
                 disabled={creating}
-                className="cbm-select"
-                style={{ flex: 1 }}
-              >
-                <option value={currentBranch}>{currentBranch} (actual) — por defecto</option>
-                {localBranches.filter(b => b.name !== currentBranch).map(b => (
-                  <option key={b.name} value={b.name}>{b.name}</option>
-                ))}
-              </select>
+              />
               <button
                 type="button"
                 onClick={() => {
