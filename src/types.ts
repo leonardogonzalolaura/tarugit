@@ -7,6 +7,13 @@ export interface RepoInfo {
   current_branch: string;
   files: FileStatus[];
   has_commits: boolean;
+  is_worktree: boolean;
+  worktree_name: string | null;
+}
+
+export interface StartupArgs {
+  open: string | null;
+  temporary: boolean;
 }
 
 export interface BranchInfo {

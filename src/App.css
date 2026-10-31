@@ -93,6 +93,35 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* ─── Temporary worktree banner ───────────────────────────── */
+.temporary-repo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  background: var(--bg-selected);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.temporary-repo-banner strong {
+  color: var(--text-primary);
+}
+
+.temporary-repo-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.temporary-repo-actions .btn-secondary {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
 /* ─── Title Bar ─────────────────────────────────────────── */
 .titlebar {
   height: 32px;
@@ -320,6 +349,25 @@ html, body, #root {
   color: var(--accent);
   flex-shrink: 0;
   margin-left: 8px;
+}
+
+.navbar-repo-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.navbar-repo-remove:hover {
+  background: rgba(232, 17, 35, 0.18);
+  color: #ff6b6b;
 }
 
 .navbar-repo-dropdown-actions {
@@ -4096,6 +4144,18 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.branch-worktree-path {
+  display: block;
+  margin: 8px 0;
+  padding: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  word-break: break-all;
 }
 
 .branch-dirty-actions,

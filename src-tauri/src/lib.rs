@@ -1,7 +1,73 @@
 mod commands;
 mod watcher;
 
+use serde::Serialize;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
 use watcher::WatcherState;
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartupArgs {
+    pub open: Option<String>,
+    pub temporary: bool,
+}
+
+pub struct StartupState(pub Mutex<StartupArgs>);
+
+impl StartupState {
+    fn new(args: StartupArgs) -> Self {
+        Self(Mutex::new(args))
+    }
+}
+
+fn parse_startup_args(args: Vec<String>) -> StartupArgs {
+    let mut parsed = StartupArgs::default();
+    let mut iter = args.into_iter().peekable();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--open" => {
+                if let Some(value) = iter.peek() {
+                    if !value.starts_with("--") {
+                        parsed.open = iter.next();
+                    }
+                }
+            }
+            "--temporary" => parsed.temporary = true,
+            _ => {
+                if let Some(value) = arg.strip_prefix("--open=") {
+                    if !value.is_empty() {
+                        parsed.open = Some(value.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    parsed
+}
+
+fn parse_startup_argv(mut argv: Vec<String>) -> StartupArgs {
+    // En Windows el primer argumento puede ser la ruta del ejecutable.
+    if argv
+        .first()
+        .map(|arg| !arg.starts_with("--"))
+        .unwrap_or(false)
+    {
+        argv.remove(0);
+    }
+    parse_startup_args(argv)
+}
+
+#[tauri::command]
+fn get_startup_args(state: tauri::State<'_, StartupState>) -> StartupArgs {
+    state
+        .0
+        .lock()
+        .map(|guard| guard.clone())
+        .unwrap_or_default()
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,11 +82,39 @@ pub fn run() {
     log::info!("Iniciando TaruGit Editor");
     
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let parsed = parse_startup_argv(argv);
+
+            if parsed.open.is_none() {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                return;
+            }
+
+            if let Some(state) = app.try_state::<StartupState>() {
+                if let Ok(mut guard) = state.0.lock() {
+                    *guard = parsed.clone();
+                }
+            }
+
+            let _ = app.emit("startup-open", parsed);
+
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         // Registrar el estado global del watcher (una sola instancia)
         .manage(WatcherState::new())
+        .manage(StartupState::new(parse_startup_argv(
+            std::env::args().collect(),
+        )))
         .invoke_handler(tauri::generate_handler![
+            get_startup_args,
             commands::git_ops::open_repository,
             commands::git_ops::clone_repository,
             commands::git_ops::commit_changes,
@@ -117,4 +211,53 @@ fn start_repo_watcher(
 #[tauri::command]
 fn stop_repo_watcher(state: tauri::State<'_, WatcherState>) {
     state.stop();
+}
+
+#[cfg(test)]
+mod startup_args_tests {
+    use super::*;
+
+    #[test]
+    fn parses_open_path_and_temporary_flag() {
+        let parsed = parse_startup_argv(vec![
+            r"C:\Program Files\tarugit\tarugit.exe".into(),
+            "--open".into(),
+            r"C:\repo\worktree".into(),
+            "--temporary".into(),
+        ]);
+
+        assert_eq!(parsed.open.as_deref(), Some(r"C:\repo\worktree"));
+        assert!(parsed.temporary);
+    }
+
+    #[test]
+    fn parses_open_equals_form() {
+        let parsed = parse_startup_argv(vec![
+            "tarugit.exe".into(),
+            r"--open=C:\repo\worktree".into(),
+        ]);
+
+        assert_eq!(parsed.open.as_deref(), Some(r"C:\repo\worktree"));
+        assert!(!parsed.temporary);
+    }
+
+    #[test]
+    fn ignores_flags_without_path() {
+        let parsed = parse_startup_argv(vec!["tarugit.exe".into(), "--temporary".into()]);
+
+        assert_eq!(parsed.open, None);
+        assert!(parsed.temporary);
+    }
+
+    #[test]
+    fn does_not_take_another_flag_as_path() {
+        let parsed = parse_startup_argv(vec![
+            "tarugit.exe".into(),
+            "--open".into(),
+            "--temporary".into(),
+        ]);
+
+        assert_eq!(parsed.open, None);
+        assert!(parsed.temporary);
+    }
 }

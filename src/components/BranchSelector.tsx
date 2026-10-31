@@ -27,6 +27,7 @@ export function BranchSelector({
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dirtyTarget, setDirtyTarget] = useState<string | null>(null);
+  const [worktreeTarget, setWorktreeTarget] = useState<{ branch: string; path: string } | null>(null);
   const [confirmDeleteBranch, setConfirmDeleteBranch] = useState<string | null>(null);
   const [copiedBranch, setCopiedBranch] = useState<string | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
@@ -155,6 +156,11 @@ export function BranchSelector({
       const errStr = String(e);
       if (errStr === 'DIRTY_WORKING_TREE') {
         setDirtyTarget(name);
+      } else if (errStr.startsWith('BRANCH_IN_OTHER_WORKTREE:')) {
+        setWorktreeTarget({
+          branch: name,
+          path: errStr.slice('BRANCH_IN_OTHER_WORKTREE:'.length),
+        });
       } else {
         alert(`Error cambiando a rama "${name}":\n${e}`);
       }
@@ -296,6 +302,42 @@ export function BranchSelector({
               setDirtyTarget(null);
               if (target) await doSwitch(target, true);
             }}>Llevar cambios</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWorktreeModal = () => {
+    if (!worktreeTarget) return null;
+    return (
+      <div className="branch-dirty-modal">
+        <div className="branch-dirty-content">
+          <h4>Rama en uso por otro worktree</h4>
+          <p>
+            La rama <strong>{worktreeTarget.branch}</strong> está checkouteada en otro
+            worktree. Git no permite la misma rama en dos lugares.
+          </p>
+          <code className="branch-worktree-path">{worktreeTarget.path}</code>
+          <p>
+            Puedes abrir ese worktree en modo temporal para resolver conflictos sin
+            cambiar la rama del repositorio principal.
+          </p>
+          <div className="branch-dirty-actions">
+            <button onClick={() => setWorktreeTarget(null)}>Cancelar</button>
+            <button
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('tarugit-open-temporary', {
+                    detail: { path: worktreeTarget.path },
+                  }),
+                );
+                setWorktreeTarget(null);
+                setIsOpen(false);
+              }}
+            >
+              Abrir worktree
+            </button>
           </div>
         </div>
       </div>
@@ -466,6 +508,7 @@ export function BranchSelector({
     <>
       {renderDeleteConfirmModal()}
       {renderDirtyModal()}
+      {renderWorktreeModal()}
       {renderMergeModal()}
       {renderRebaseModal()}
       

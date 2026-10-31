@@ -114,9 +114,23 @@ export function QuickBranchModal({
     } catch (e) {
       console.error('Error en switch:', e);
       const errStr = String(e);
-      if (errStr !== 'DIRTY_WORKING_TREE') {
-        alert(`Error cambiando a rama "${name}":\n${e}`);
+      if (errStr === 'DIRTY_WORKING_TREE') {
+        return;
       }
+      if (errStr.startsWith('BRANCH_IN_OTHER_WORKTREE:')) {
+        const path = errStr.slice('BRANCH_IN_OTHER_WORKTREE:'.length);
+        if (
+          window.confirm(
+            `La rama "${name}" está en uso por el worktree:\n${path}\n\n¿Abrirlo en modo temporal?`,
+          )
+        ) {
+          window.dispatchEvent(
+            new CustomEvent('tarugit-open-temporary', { detail: { path } }),
+          );
+        }
+        return;
+      }
+      alert(`Error cambiando a rama "${name}":\n${e}`);
     }
   };
 

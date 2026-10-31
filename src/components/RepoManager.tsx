@@ -13,9 +13,24 @@ export interface SavedRepo {
 
 export const STORAGE_KEY = 'tarugit_repos';
 
+// Los worktrees de FlowManager se abren en modo temporal y no deben quedar
+// guardados como repositorios. Limpiamos entradas antiguas al cargar.
+const FLOWMANAGER_WORKTREE_PATTERN = /[\\/]com\.leona\.flowmanager[\\/]worktrees[\\/]/i;
+
+export function isFlowManagerWorktree(path: string): boolean {
+  return FLOWMANAGER_WORKTREE_PATTERN.test(path);
+}
+
 function loadSavedRepos(): SavedRepo[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch { return []; }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    const repos = parsed.filter(
+      (repo: SavedRepo) => !FLOWMANAGER_WORKTREE_PATTERN.test(String(repo?.path ?? '')),
+    );
+    if (repos.length !== parsed.length) saveRepos(repos);
+    return repos;
+  } catch { return []; }
 }
 
 function saveRepos(repos: SavedRepo[]) {

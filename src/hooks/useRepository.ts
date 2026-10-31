@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { RepoInfo } from '../types';
+import { RepoInfo, StartupArgs } from '../types';
 import { toast } from '../components/Toast';
 
 export type ConflictOperation = {
@@ -12,10 +12,12 @@ export type ConflictOperation = {
 export function useRepository(addRepo: (path: string) => void) {
   const [repoPath, setRepoPath] = useState('');
   const [repoInfo, setRepoInfo] = useState<RepoInfo | null>(null);
+  const [temporaryRepo, setTemporaryRepo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [, setRefreshTrigger] = useState(0);
   const [conflictOperation, setConflictOperation] = useState<ConflictOperation | null>(null);
   const refreshingRef = useRef(false);
+  const bootstrappedRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     if (!repoPath || refreshingRef.current) return;
@@ -51,7 +53,10 @@ export function useRepository(addRepo: (path: string) => void) {
     };
   }, [repoPath, refreshStatus]);
 
-  const openRepo = useCallback(async (path?: string) => {
+  const openRepo = useCallback(async (
+    path?: string,
+    options?: { temporary?: boolean },
+  ) => {
     const targetPath = path ?? repoPath;
     if (!targetPath) return;
     setLoading(true);
@@ -60,6 +65,9 @@ export function useRepository(addRepo: (path: string) => void) {
       setRepoPath(targetPath);
       setRepoInfo(result);
       setConflictOperation(null);
+      // Un worktree abierto manualmente también es temporal: no se guarda en
+      // `tarugit_repos` a menos que el usuario pulse "Guardar".
+      setTemporaryRepo(options?.temporary ?? result.is_worktree);
       return result;
     } catch (e) {
       toast.error(`Error al abrir: ${e}`);
@@ -69,19 +77,42 @@ export function useRepository(addRepo: (path: string) => void) {
   }, [repoPath]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tarugit_repos');
-    if (saved) {
+    if (bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
+
+    const bootstrap = async () => {
+      // Si FlowManager abrió TaruGit con `--open`, esa ruta tiene prioridad
+      // sobre el último repositorio guardado.
+      let startup: StartupArgs | null = null;
+      try {
+        startup = await invoke<StartupArgs>('get_startup_args');
+      } catch {
+        // La app puede estar corriendo en navegador (sin Tauri).
+      }
+
+      if (startup?.open) {
+        const opened = await openRepo(startup.open, { temporary: true });
+        if (opened) return;
+        // Si el worktree temporal ya no existe, seguimos con el último repo
+        // guardado en lugar de dejar la app vacía.
+      }
+
+      const saved = localStorage.getItem('tarugit_repos');
+      if (!saved) return;
+
       try {
         const repos = JSON.parse(saved);
         if (Array.isArray(repos) && repos.length > 0) {
           const sorted = [...repos].sort((a: any, b: any) => b.lastOpenedAt - a.lastOpenedAt);
           const last = sorted[0];
-          if (last?.path) openRepo(last.path);
+          if (last?.path) await openRepo(last.path, { temporary: false });
         }
       } catch (e) {
         console.error('Error al abrir repo inicial:', e);
       }
-    }
+    };
+
+    void bootstrap();
   }, []);
 
   const cloneRepo = useCallback(async (url: string, targetPath: string) => {
@@ -119,6 +150,7 @@ export function useRepository(addRepo: (path: string) => void) {
   return {
     repoPath, setRepoPath,
     repoInfo, setRepoInfo,
+    temporaryRepo, setTemporaryRepo,
     loading, setLoading,
     conflictOperation, setConflictOperation,
     refreshStatus, openRepo, cloneRepo,

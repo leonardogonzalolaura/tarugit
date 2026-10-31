@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { Navbar } from './components/Navbar';
 import { TitleBar } from './components/TitleBar';
-import { useRepos, AddRepoModal, CloneRepoModal } from './components/RepoManager';
+import { useRepos, AddRepoModal, CloneRepoModal, isFlowManagerWorktree } from './components/RepoManager';
 import { FileList } from './components/FileList';
 import { LeftTabs } from './components/LeftTabs';
 import { DiffViewer } from './components/DiffViewer';
@@ -12,7 +13,7 @@ import { FileDiffViewer } from './components/history/FileDiffViewer';
 import { CommitDiffPanel } from './components/history/CommitDiffPanel';
 import { FileHistoryModal } from './components/history/FileHistoryModal';
 import { BranchGraph } from './components/graph/BranchGraph';
-import { FileDiff, StashInfo } from './types';
+import { FileDiff, StashInfo, StartupArgs } from './types';
 import { ConflictResolver } from './components/ConflictResolver/index';
 import { OperationStatusBar } from './components/OperationStatusBar';
 import { Footer } from './components/Footer';
@@ -37,10 +38,12 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import './App.css';
 
 function App() {
-  const { sorted: savedRepos, addRepo } = useRepos('');
+  const { sorted: savedRepos, addRepo, removeRepo } = useRepos('');
 
   const {
-    repoPath, repoInfo, loading, setLoading,
+    repoPath, setRepoPath, repoInfo, setRepoInfo,
+    temporaryRepo, setTemporaryRepo,
+    loading, setLoading,
     conflictOperation, setConflictOperation,
     refreshStatus, openRepo, cloneRepo,
     handleBranchSwitch, handleConflictDetected, handleOperationAborted,
@@ -240,14 +243,65 @@ function App() {
     setStashDiffs([]);
   }, []);
 
-  const openRepoWithReset = useCallback(async (path: string) => {
-    await openRepo(path);
+  const openRepoWithReset = useCallback(async (
+    path: string,
+    options?: { temporary?: boolean },
+  ) => {
+    const result = await openRepo(path, options);
     setSelectedFile(null);
     setFileDiff('');
     setActivePanel('diff');
     setLeftTab('changes');
     setResolvingConflictFile(null);
+    return result;
   }, [openRepo]);
+
+  const saveTemporaryRepo = useCallback(() => {
+    if (!repoPath) return;
+    addRepo(repoPath);
+    setTemporaryRepo(false);
+    toast.success('Repositorio guardado');
+  }, [repoPath, addRepo, setTemporaryRepo]);
+
+  const closeTemporaryRepo = useCallback(() => {
+    setRepoPath('');
+    setRepoInfo(null);
+    setTemporaryRepo(false);
+    setSelectedFile(null);
+    setFileDiff('');
+    setResolvingConflictFile(null);
+  }, [setRepoPath, setRepoInfo, setTemporaryRepo]);
+
+  // Segunda instancia de TaruGit (FlowManager ya tenía la app abierta).
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    listen<StartupArgs>('startup-open', (event) => {
+      const path = event.payload.open;
+      if (!path || path === repoPath) return;
+      void openRepoWithReset(path, { temporary: true });
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {});
+
+    return () => {
+      unlisten?.();
+    };
+  }, [openRepoWithReset, repoPath]);
+
+  // Apertura temporal solicitada desde el selector de ramas (rama en uso por
+  // otra worktree) u otros componentes.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) void openRepoWithReset(path, { temporary: true });
+    };
+
+    window.addEventListener('tarugit-open-temporary', handler);
+    return () => window.removeEventListener('tarugit-open-temporary', handler);
+  }, [openRepoWithReset]);
 
   const handleClone = useCallback(async (url: string, path: string) => {
     await cloneRepo(url, path);
@@ -280,12 +334,31 @@ function App() {
     <ErrorBoundary>
       <div className="app">
         <TitleBar />
+        {temporaryRepo && (
+          <div className="temporary-repo-banner">
+            <span>
+              <strong>Worktree temporal</strong> — no guardado en repositorios
+              {repoInfo?.worktree_name ? ` (${repoInfo.worktree_name})` : ''}
+            </span>
+            <div className="temporary-repo-actions">
+              {!isFlowManagerWorktree(repoPath) && (
+                <button className="btn-secondary" onClick={saveTemporaryRepo}>
+                  Guardar
+                </button>
+              )}
+              <button className="btn-secondary" onClick={closeTemporaryRepo}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
         <ToastContainer />
         <Navbar
           repoInfo={repoInfo}
           repos={savedRepos}
           activeRepoPath={repoPath}
-          onSelectRepo={openRepoWithReset}
+          onSelectRepo={(path) => { void openRepoWithReset(path, { temporary: false }); }}
+          onRemoveRepo={removeRepo}
           onAddRepo={() => setShowAddModal(true)}
           onCloneRepo={() => setShowCloneModal(true)}
           showGraph={leftTab === 'graph'}
@@ -297,7 +370,13 @@ function App() {
 
         {showAddModal && (
           <AddRepoModal
-            onAdd={(path) => { addRepo(path); openRepoWithReset(path); setShowAddModal(false); }}
+            onAdd={async (path) => {
+              const result = await openRepoWithReset(path);
+              if (result && !result.is_worktree) {
+                addRepo(path);
+              }
+              setShowAddModal(false);
+            }}
             onClose={() => setShowAddModal(false)}
           />
         )}
@@ -540,7 +619,7 @@ function App() {
           <QuickRepoModal
             repos={savedRepos}
             activeRepoPath={repoPath}
-            onSelect={(path) => { openRepoWithReset(path); setShowQuickRepo(false); }}
+            onSelect={(path) => { void openRepoWithReset(path, { temporary: false }); setShowQuickRepo(false); }}
             onClose={() => setShowQuickRepo(false)}
           />
         )}

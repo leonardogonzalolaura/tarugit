@@ -9,6 +9,7 @@ interface NavbarProps {
   repos: SavedRepo[];
   activeRepoPath: string;
   onSelectRepo: (path: string) => void;
+  onRemoveRepo?: (id: string) => void;
   onAddRepo: () => void;
   onCloneRepo: () => void;
   onShowGraph?: () => void;
@@ -28,6 +29,7 @@ export function Navbar({
   repos, 
   activeRepoPath, 
   onSelectRepo, 
+  onRemoveRepo,
   onAddRepo, 
   onCloneRepo,
   onShowGraph,
@@ -47,6 +49,10 @@ export function Navbar({
   const [showRepoDropdown, setShowRepoDropdown] = useState(false);
 
   const activeRepo = repos.find(r => r.path === activeRepoPath);
+  const activeRepoName = activeRepo?.name ??
+    (activeRepoPath
+      ? activeRepoPath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? activeRepoPath
+      : 'Seleccionar repositorio');
 
   const applyRemoteStatus = (status: { ahead: number; behind: number; has_remote: boolean; has_upstream: boolean }) => {
     setAheadCount(status.ahead);
@@ -152,7 +158,7 @@ export function Navbar({
             <svg className="navbar-repo-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
               <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.25.25 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/>
             </svg>
-            <span className="navbar-repo-name">{activeRepo?.name || 'Seleccionar repositorio'}</span>
+            <span className="navbar-repo-name" title={activeRepoPath || undefined}>{activeRepoName}</span>
             <span className="navbar-repo-chevron">▼</span>
           </button>
 
@@ -172,6 +178,26 @@ export function Navbar({
                       <span className="navbar-repo-item-path">{r.path}</span>
                     </span>
                     {r.path === activeRepoPath && <span className="navbar-repo-check">✓</span>}
+                    {onRemoveRepo && (
+                      <span
+                        className="navbar-repo-remove"
+                        role="button"
+                        tabIndex={0}
+                        title="Quitar de repositorios"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRemoveRepo(r.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.stopPropagation();
+                            onRemoveRepo(r.id);
+                          }
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

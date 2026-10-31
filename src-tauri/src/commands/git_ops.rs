@@ -36,6 +36,8 @@ pub struct RepoInfo {
     pub current_branch: String,
     pub files: Vec<FileStatus>,
     pub has_commits: bool,
+    pub is_worktree: bool,
+    pub worktree_name: Option<String>,
 }
 
 #[derive(serde::Serialize, Debug)]
@@ -140,14 +142,17 @@ pub fn get_repo_status(repo_path: String) -> Result<RepoInfo, String> {
 
 #[command]
 pub fn get_repo_state(repo_path: String) -> Result<RepoState, String> {
-    let git_dir = format!("{}/.git", repo_path);
+    // `repo.path()` apunta al gitdir real. En un worktree vinculado es
+    // `.git/worktrees/<nombre>`, no `<worktree>/.git` (que es un archivo).
+    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+    let git_dir = repo.path();
     
-    let is_rebasing = std::path::Path::new(&format!("{}/rebase-merge", git_dir)).exists()
-        || std::path::Path::new(&format!("{}/rebase-apply", git_dir)).exists();
+    let is_rebasing = git_dir.join("rebase-merge").exists()
+        || git_dir.join("rebase-apply").exists();
     
-    let is_merging = std::path::Path::new(&format!("{}/MERGE_HEAD", git_dir)).exists();
+    let is_merging = git_dir.join("MERGE_HEAD").exists();
     
-    let is_cherry_picking = std::path::Path::new(&format!("{}/CHERRY_PICK_HEAD", git_dir)).exists();
+    let is_cherry_picking = git_dir.join("CHERRY_PICK_HEAD").exists();
     
     let current_operation = if is_rebasing {
         Some("rebase".to_string())
@@ -173,6 +178,15 @@ fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoI
         Err(_) => "no-commits".to_string(),
     };
     let has_commits = repo.head().is_ok();
+    let is_worktree = repo.is_worktree();
+    let worktree_name = if is_worktree {
+        repo.path()
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.to_string())
+    } else {
+        None
+    };
     let mut opts = StatusOptions::new();
     opts.include_ignored(false);
     opts.include_untracked(true);
@@ -228,10 +242,13 @@ fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoI
             }
         }
         
-        // También verificar usando git status por si acaso
-        let git_dir = repo.path().to_path_buf();
-        let git_dir_str = git_dir.to_string_lossy().to_string();
-        let repo_parent = git_dir_str.replace("/.git", "").replace("\\.git", "");
+        // También verificar usando git status por si acaso.
+        // En worktrees `repo.path()` es `.git/worktrees/<nombre>`, así que el
+        // directorio de trabajo correcto es `repo.workdir()`.
+        let repo_parent = repo
+            .workdir()
+            .map(|path| path.to_path_buf())
+            .unwrap_or_else(|| repo.path().to_path_buf());
         
         let output = create_git_command()
             .args(["status", "--porcelain"])
@@ -255,7 +272,13 @@ fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoI
         }
     }
     
-    Ok(RepoInfo { current_branch, files, has_commits })
+    Ok(RepoInfo {
+        current_branch,
+        files,
+        has_commits,
+        is_worktree,
+        worktree_name,
+    })
 }
 
 #[command]
@@ -704,10 +727,66 @@ pub fn list_branches(repo_path: String) -> Result<Vec<BranchInfo>, String> {
     Ok(branches)
 }
 
+/// Devuelve la ruta del worktree que tiene checkouteada la rama, si no es el
+/// repositorio actual.
+fn branch_worktree_path(repo_path: &Path, branch_name: &str) -> Result<Option<String>, String> {
+    let output = create_git_command()
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| format!("No se pudieron listar los worktrees: {e}"))?;
+
+    if !output.status.success() {
+        return Ok(None);
+    }
+
+    let expected = format!("refs/heads/{branch_name}");
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut current_worktree: Option<String> = None;
+
+    for line in text.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            current_worktree = Some(path.to_string());
+        } else if let Some(branch) = line.strip_prefix("branch ") {
+            if branch.trim() == expected {
+                return Ok(current_worktree);
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+/// Valida antes de tocar el índice/worktree que la rama no esté checkouteada
+/// en otro worktree. Git no permite la misma rama en dos worktrees y, si se
+/// intenta, `set_head` falla después de `checkout_tree` y deja cambios staged.
+fn ensure_branch_not_in_other_worktree(
+    repo_path: &Path,
+    repo: &Repository,
+    branch_name: &str,
+) -> Result<(), String> {
+    let current = repo
+        .head()
+        .ok()
+        .and_then(|head| head.shorthand().map(|name| name.to_string()));
+
+    if current.as_deref() == Some(branch_name) {
+        return Ok(());
+    }
+
+    if let Some(owner) = branch_worktree_path(repo_path, branch_name)? {
+        return Err(format!("BRANCH_IN_OTHER_WORKTREE:{owner}"));
+    }
+
+    Ok(())
+}
+
 #[command]
 pub fn switch_branch(repo_path: String, branch_name: String) -> Result<RepoInfo, String> {
     log::info!("Cambiando a rama: {}", branch_name);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+
+    ensure_branch_not_in_other_worktree(Path::new(&repo_path), &repo, &branch_name)?;
 
     let mut status_opts = StatusOptions::new();
     status_opts.include_untracked(true);
@@ -730,6 +809,9 @@ pub fn switch_branch(repo_path: String, branch_name: String) -> Result<RepoInfo,
 pub fn switch_branch_force(repo_path: String, branch_name: String) -> Result<RepoInfo, String> {
     log::info!("Forzando cambio a rama: {}", branch_name);
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+
+    ensure_branch_not_in_other_worktree(Path::new(&repo_path), &repo, &branch_name)?;
+
     let branch = repo.find_branch(&branch_name, git2::BranchType::Local)
         .map_err(|e| format!("Rama no encontrada: {}", e))?;
     let ref_name = branch.get().name().ok_or("Nombre de referencia inválido")?.to_string();
