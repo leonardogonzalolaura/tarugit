@@ -143,6 +143,7 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
           onUpdateContent={updateContent}
           allResolved={allResolved}
           onSaveAndContinue={() => { setShowFocusModal(false); handleSave(); }}
+          filePath={filePath}
         />
       )}
 
@@ -226,6 +227,7 @@ export function ConflictResolver({ repoPath, filePath, onResolved, onCancel, ope
           onIgnore={ignoreBlock}
           onUpdateContent={updateContent}
           operationContext={operationContext}
+          filePath={filePath}
         />
       </div>
     </>

@@ -1,5 +1,7 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import { ConflictFileBlock } from '../ConflictResolver.types';
+import { RELATION_META, describeDuplicateLines, findDuplicateLines, findOverlapLines, getBlockRelation } from '../utils/conflictRelation';
+import { ConflictCodeEditor } from './ConflictCodeEditor';
 
 interface ConflictFocusModalProps {
   blocks: ConflictFileBlock[];
@@ -13,6 +15,7 @@ interface ConflictFocusModalProps {
   onUpdateContent: (blockId: string, value: string) => void;
   allResolved?: boolean;
   onSaveAndContinue?: () => void;
+  filePath?: string;
 }
 
 const SvgClose = () => <svg width="12" height="12" viewBox="0 0 16 16" fill="currentcolor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>;
@@ -21,6 +24,11 @@ const SvgArrowRight = () => <svg width="10" height="10" viewBox="0 0 16 16" fill
 const SvgPencil = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25a1.75 1.75 0 0 1 .445-.758l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L4.513 10.08a.25.25 0 0 0-.064.108l-.562 1.967 1.967-.562a.25.25 0 0 0 .108-.064l7.147-7.147a.25.25 0 0 0 0-.354l-1.086-1.086Z"/></svg>;
 const SvgLink = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/></svg>;
 const SvgX = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>;
+const SvgInfo = () => <svg width="11" height="11" viewBox="0 0 16 16" fill="currentcolor"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm7.25-3.25v1.5h1.5v-1.5h-1.5Zm0 3v5h1.5v-5h-1.5Z"/></svg>;
+const SvgWarning = () => <svg width="11" height="11" viewBox="0 0 16 16" fill="currentcolor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.68a.25.25 0 0 0-.44 0L1.698 13.105a.25.25 0 0 0 .22.395h12.164a.25.25 0 0 0 .22-.395ZM8 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 5Zm0 7.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"/></svg>;
+
+const isEditorTarget = (el: HTMLElement | null): boolean =>
+  !!el && (el.tagName === 'TEXTAREA' || !!el.closest('.cm-editor'));
 
 export function ConflictFocusModal({
   blocks,
@@ -33,7 +41,8 @@ export function ConflictFocusModal({
   onIgnore,
   onUpdateContent,
   allResolved,
-  onSaveAndContinue
+  onSaveAndContinue,
+  filePath
 }: ConflictFocusModalProps) {
   const conflictBlocks = blocks.filter(b => b.type === 'conflict');
   const current = conflictBlocks[currentIndex];
@@ -49,10 +58,9 @@ export function ConflictFocusModal({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // No interceptar flechas si estamos editando el textarea
+      // No interceptar flechas si estamos editando en el resultado.
       const ae = document.activeElement as HTMLElement | null;
-      const isEditing = ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-focus-textarea');
-      if (isEditing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+      if (isEditorTarget(ae) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') goPrev();
       if (e.key === 'ArrowRight') goNext();
@@ -61,40 +69,16 @@ export function ConflictFocusModal({
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, goPrev, goNext]);
 
-  // Estado local: mientras está enfocado NO sincronizamos al padre (evita el rebote a los ~450ms)
-  const [localValue, setLocalValue] = useState(current?.content ?? '');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const isFocusedRef = useRef(false);
-  const latestValueRef = useRef(current?.content ?? '');
-
-  useEffect(() => {
-    if (!isFocusedRef.current) {
-      setLocalValue(current?.content ?? '');
-      latestValueRef.current = current?.content ?? '';
-    }
-  }, [current?.id, current?.content]);
-
   if (!current) return null;
 
   const isPending = !current.resolution || current.resolution === 'pending';
   const statusClass = isPending ? 'pending' : 'resolved';
-
-  const flushToParent = (val: string) => {
-    if (val !== current.content) onUpdateContent(current.id, val);
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    latestValueRef.current = val;
-    setLocalValue(val);
-    // No flush al padre aquí — solo en blur/guardar — para no provocar re-render que bota el foco
-  };
-
-  const handleBlur = () => {
-    isFocusedRef.current = false;
-    flushToParent(latestValueRef.current);
-  };
-
+  const relationMeta = RELATION_META[getBlockRelation(current.content, current.theirsContent)];
+  const duplicates = findDuplicateLines(current.content);
+  const duplicateWarning = describeDuplicateLines(duplicates);
+  const matchedLines = relationMeta?.tone === 'duplicate'
+    ? findOverlapLines(current.content, current.theirsContent)
+    : [];
   const isLast = currentIndex === total - 1;
 
   return (
@@ -142,32 +126,56 @@ export function ConflictFocusModal({
 
         <div className="cr-focus-columns">
           <div className="cr-focus-cell ours">
-            <div className="cr-focus-code">
-              {current.oursContent?.split('\n').map((line, i) => (
-                <div key={i} className="cr-focus-line ours">{line || ' '}</div>
-              ))}
-            </div>
+            <ConflictCodeEditor
+              key={`ours-${current.id}`}
+              value={current.oursContent ?? ''}
+              filePath={filePath}
+              readOnly
+              className="cr-focus-editor"
+              ariaLabel={`Contenido local del conflicto ${currentIndex + 1}`}
+            />
           </div>
 
-          <div className="cr-focus-cell result">
-            <textarea
-              ref={textareaRef}
-              value={localValue}
-              onChange={handleChange}
-              onFocus={() => { isFocusedRef.current = true; }}
-              onBlur={handleBlur}
-              onMouseDown={e => e.stopPropagation()}
-              onClick={e => e.stopPropagation()}
-              className="cr-focus-textarea"
+          <div className={`cr-focus-cell result${relationMeta ? ` relation-${relationMeta.tone}` : ''}${duplicates.length > 0 ? ' has-duplicates' : ''}`}>
+            {duplicates.length > 0 && (
+              <div className="cr-focus-relation duplicated-lines">
+                <span className="cr-focus-relation-icon"><SvgWarning /></span>
+                <span className="cr-focus-relation-text">
+                  {duplicateWarning}
+                  <span className="cr-focus-relation-hint"> · revisa el resultado</span>
+                </span>
+              </div>
+            )}
+            {relationMeta && (
+              <div className={`cr-focus-relation ${relationMeta.tone}`}>
+                <span className="cr-focus-relation-icon"><SvgInfo /></span>
+                <span className="cr-focus-relation-text">
+                  {relationMeta.label}
+                  {relationMeta.hint && <span className="cr-focus-relation-hint"> · {relationMeta.hint}</span>}
+                </span>
+              </div>
+            )}
+            <ConflictCodeEditor
+              key={current.id}
+              value={current.content}
+              filePath={filePath}
+              onChange={(val) => onUpdateContent(current.id, val)}
+              className="cr-focus-editor"
+              ariaLabel={`Resultado del conflicto ${currentIndex + 1}`}
+              highlightDuplicates
+              matchedLines={matchedLines}
             />
           </div>
 
           <div className="cr-focus-cell theirs">
-            <div className="cr-focus-code">
-              {current.theirsContent?.split('\n').map((line, i) => (
-                <div key={i} className="cr-focus-line theirs">{line || ' '}</div>
-              ))}
-            </div>
+            <ConflictCodeEditor
+              key={`theirs-${current.id}`}
+              value={current.theirsContent ?? ''}
+              filePath={filePath}
+              readOnly
+              className="cr-focus-editor"
+              ariaLabel={`Contenido entrante del conflicto ${currentIndex + 1}`}
+            />
           </div>
         </div>
 

@@ -19,6 +19,7 @@ interface ThreeWayMergeViewerProps {
   onIgnore: (blockId: string) => void;
   onUpdateContent: (blockId: string, value: string) => void;
   operationContext?: { type: 'merge' | 'rebase' | 'cherry-pick' };
+  filePath: string;
 }
 
 const SvgArrowLeft = () => <svg width="10" height="10" viewBox="0 0 16 16" fill="currentcolor"><path d="M7.78 12.53a.75.75 0 0 1-1.06 0L2.22 8.03a.75.75 0 0 1 0-1.06l4.5-4.5a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L5.06 7h8.19a.75.75 0 0 1 0 1.5H5.06l2.72 2.72a.75.75 0 0 1 0 1.06Z"/></svg>;
@@ -34,7 +35,8 @@ function renderBlocks(
   onAcceptTheirs: (blockId: string) => void,
   onAcceptBoth: (blockId: string) => void,
   onIgnore: (blockId: string) => void,
-  onUpdateContent: (blockId: string, value: string) => void
+  onUpdateContent: (blockId: string, value: string) => void,
+  filePath: string
 ) {
   let conflictCounter = 0;
   return blocks.map((block) => {
@@ -63,6 +65,7 @@ function renderBlocks(
         onIgnore={() => onIgnore(block.id)}
         onUpdateContent={(val) => onUpdateContent(block.id, val)}
         pane={paneType}
+        filePath={filePath}
       />
     );
   });
@@ -79,7 +82,8 @@ function renderBlockCell(
   onAcceptTheirs: (blockId: string) => void,
   onAcceptBoth: (blockId: string) => void,
   onIgnore: (blockId: string) => void,
-  onUpdateContent: (blockId: string, value: string) => void
+  onUpdateContent: (blockId: string, value: string) => void,
+  filePath: string
 ) {
   const isHovered = hoveredBlockId === block.id;
 
@@ -104,6 +108,7 @@ function renderBlockCell(
       onIgnore={() => onIgnore(block.id)}
       onUpdateContent={(val) => onUpdateContent(block.id, val)}
       pane={paneType}
+      filePath={filePath}
     />
   );
 }
@@ -120,28 +125,29 @@ export function ThreeWayMergeViewer({
   onAcceptBoth,
   onIgnore,
   onUpdateContent,
-  operationContext
+  operationContext,
+  filePath
 }: ThreeWayMergeViewerProps) {
   const { oursRef, resultRef, theirsRef } = scrollRefs;
   const isRebase = operationContext?.type === 'rebase';
 
   const onScrollOurs = useCallback(() => {
     if (layout === 'vertical') return;
-    // No robar foco si el activeElement es un textarea del resultado
+    // No robar foco si el activeElement es un editor del resultado
     const ae = document.activeElement as HTMLElement | null;
-    if (ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-block-textarea')) return;
+    if (ae?.tagName === 'TEXTAREA' || ae?.closest('.cm-editor')) return;
     syncScroll(oursRef)();
   }, [syncScroll, layout]);
   const onScrollResult = useCallback(() => {
     if (layout !== 'side') return;
     const ae = document.activeElement as HTMLElement | null;
-    if (ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-block-textarea')) return;
+    if (ae?.tagName === 'TEXTAREA' || ae?.closest('.cm-editor')) return;
     syncScroll(resultRef)();
   }, [syncScroll, layout]);
   const onScrollTheirs = useCallback(() => {
     if (layout === 'vertical') return;
     const ae = document.activeElement as HTMLElement | null;
-    if (ae?.tagName === 'TEXTAREA' && ae.classList.contains('cr-block-textarea')) return;
+    if (ae?.tagName === 'TEXTAREA' || ae?.closest('.cm-editor')) return;
     syncScroll(theirsRef)();
   }, [syncScroll, layout]);
 
@@ -178,10 +184,10 @@ export function ThreeWayMergeViewer({
                 const cn = conflictNumberMap.get(block.id) || 0;
                 return [
                   <div key={`${block.id}-local`} className="cr-cell local">
-                    {renderBlockCell(block, localType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                    {renderBlockCell(block, localType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
                   </div>,
                   <div key={`${block.id}-remote`} className="cr-cell remote">
-                    {renderBlockCell(block, remoteType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                    {renderBlockCell(block, remoteType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
                   </div>
                 ];
               })}
@@ -196,7 +202,7 @@ export function ThreeWayMergeViewer({
 
         <div className="cr-result-row" style={{ flex: 1, overflow: 'hidden' }}>
           <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ height: '100%', boxSizing: 'border-box' }}>
-            {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+            {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
           </div>
         </div>
       </div>
@@ -220,7 +226,7 @@ export function ThreeWayMergeViewer({
         </div>
         <div className="cr-vert-section">
           <div ref={topRef} onScroll={topScroll} className={`cr-pane-body ${topContent}`}>
-            {renderBlocks(blocks, topContent as 'ours' | 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+            {renderBlocks(blocks, topContent as 'ours' | 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
           </div>
         </div>
 
@@ -229,7 +235,7 @@ export function ThreeWayMergeViewer({
         </div>
         <div className="cr-vert-section">
           <div ref={bottomRef} onScroll={bottomScroll} className={`cr-pane-body ${bottomContent}`}>
-            {renderBlocks(blocks, bottomContent as 'ours' | 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+            {renderBlocks(blocks, bottomContent as 'ours' | 'theirs', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
           </div>
         </div>
 
@@ -239,7 +245,7 @@ export function ThreeWayMergeViewer({
         </div>
         <div className="cr-vert-section">
           <div ref={resultRef} onScroll={onScrollResult} className="cr-pane-body result" style={{ height: '100%', boxSizing: 'border-box' }}>
-            {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+            {renderBlocks(blocks, 'result', hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
           </div>
         </div>
       </div>
@@ -273,13 +279,13 @@ export function ThreeWayMergeViewer({
               const cn = conflictNumberMap.get(block.id) || 0;
               return [
                 <div key={`${block.id}-ours`} className="cr-cell ours">
-                  {renderBlockCell(block, leftPaneType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                  {renderBlockCell(block, leftPaneType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
                 </div>,
                 <div key={`${block.id}-result`} className="cr-cell result">
-                  {renderBlockCell(block, 'result', cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                  {renderBlockCell(block, 'result', cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
                 </div>,
                 <div key={`${block.id}-theirs`} className="cr-cell theirs">
-                  {renderBlockCell(block, rightPaneType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent)}
+                  {renderBlockCell(block, rightPaneType, cn, totalConflicts, hoveredBlockId, onHoverChange, onAcceptOurs, onAcceptTheirs, onAcceptBoth, onIgnore, onUpdateContent, filePath)}
                 </div>
               ];
             })}

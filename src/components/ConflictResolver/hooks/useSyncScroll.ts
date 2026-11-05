@@ -16,7 +16,7 @@ export function useSyncScroll(layout: LayoutMode = 'side') {
     return () => {
       // No sincronizar mientras el usuario edita el Resultado: evita re-renders que roban foco
       const ae = document.activeElement as HTMLElement | null;
-      if (ae?.tagName === 'TEXTAREA' && (ae.classList.contains('cr-block-textarea') || ae.classList.contains('cr-focus-textarea'))) {
+      if (ae?.tagName === 'TEXTAREA' || ae?.closest('.cm-editor')) {
         return;
       }
       if (isSyncing.current) return;
