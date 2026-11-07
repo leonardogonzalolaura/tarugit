@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { formatDate } from './utils';
+import { FileHistoryModal } from './FileHistoryModal';
 
 interface FileDiff {
   path: string;
@@ -18,6 +19,8 @@ interface ExtendedCommitInfo {
 interface CommitDiffPanelProps {
   commit: ExtendedCommitInfo;
   fileDiffs: FileDiff[];
+  repoPath: string;
+  showFileHistory?: boolean;
 }
 
 function DiffLines({ diff }: { diff: string }) {
@@ -55,12 +58,13 @@ function DiffLines({ diff }: { diff: string }) {
   );
 }
 
-export function CommitDiffPanel({ commit, fileDiffs }: CommitDiffPanelProps) {
+export function CommitDiffPanel({ commit, fileDiffs, repoPath, showFileHistory = true }: CommitDiffPanelProps) {
   const [selFile, setSelFile] = useState<string | null>(
     fileDiffs.length > 0 ? fileDiffs[0].path : null
   );
   const [listPct, setListPct] = useState(25);
   const [resizing, setResizing] = useState(false);
+  const [fileHistoryPath, setFileHistoryPath] = useState<string | null>(null);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     if (!resizing) return;
@@ -143,12 +147,28 @@ export function CommitDiffPanel({ commit, fileDiffs }: CommitDiffPanelProps) {
                     <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
                   </svg>
                 </button>
+                {showFileHistory && (
+                  <button className="hds-dc-copy" onClick={() => setFileHistoryPath(f.path)} title="Ver historial del archivo">
+                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <circle cx="8" cy="8" r="6.5" />
+                      <path d="M7.5 4.5v4l2.5 1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                )}
               </div>
               <DiffLines diff={f.diff} />
             </div>
           ))}
         </div>
       </div>
+
+      {fileHistoryPath && (
+        <FileHistoryModal
+          repoPath={repoPath}
+          filePath={fileHistoryPath}
+          onClose={() => setFileHistoryPath(null)}
+        />
+      )}
     </div>
   );
 }

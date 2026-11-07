@@ -2236,6 +2236,267 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .modal-desc { font-size: 13px; color: var(--text-secondary); }
 .modal-actions { display: flex; gap: 12px; justify-content: center; }
 
+/* ─── File History Modal (fhm-*) ─────────────────────────────────────────── */
+.fhm-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 560px;
+  max-width: 95vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
+  overflow: hidden;
+}
+
+.fhm-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.fhm-header-icon {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.fhm-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.fhm-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.fhm-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fhm-subtitle-dir { opacity: .6; }
+.fhm-subtitle-name { color: var(--accent); font-weight: 500; }
+
+.fhm-close {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all .12s;
+}
+.fhm-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+
+.fhm-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.fhm-state-error { color: var(--red); }
+
+.fhm-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px 8px;
+}
+
+.fhm-entry {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Timeline */
+.fhm-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 14px;
+}
+.fhm-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 2px solid var(--accent);
+  flex-shrink: 0;
+}
+.fhm-line {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--border);
+  margin-top: 3px;
+}
+
+.fhm-entry-body {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0 16px;
+}
+.fhm-entry:last-child .fhm-entry-body { padding-bottom: 4px; }
+
+.fhm-entry-msg {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fhm-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.fhm-meta-hash {
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--accent);
+  opacity: .8;
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 4px;
+  background: var(--bg-elevated);
+  transition: opacity .12s;
+}
+.fhm-meta-hash:hover { opacity: 1; }
+.fhm-meta-sep { opacity: .35; }
+.fhm-meta-author, .fhm-meta-date {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.fhm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.fhm-footer-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.fhm-footer-hint { opacity: .6; }
+
+/* Modal wide cuando hay detalle abierto */
+.fhm-modal--wide {
+  width: min(92vw, 1100px);
+}
+
+/* Body split */
+.fhm-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  min-height: 0;
+}
+
+.fhm-list-col {
+  width: 360px;
+  min-width: 260px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 8px 0;
+}
+.fhm-modal:not(.fhm-modal--wide) .fhm-list-col {
+  width: 100%;
+  border-right: none;
+}
+
+.fhm-detail-col {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.fhm-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+}
+.fhm-detail-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* CommitDiffPanel dentro del modal ocupa todo el espacio */
+.fhm-detail-col .diff-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Entradas de la lista — ahora clickeables */
+.fhm-entry {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 0 8px;
+  padding-right: 4px;
+  transition: background .1s;
+}
+.fhm-entry:hover { background: var(--bg-hover); }
+.fhm-entry--selected { background: var(--bg-selected); }
+.fhm-entry--selected .fhm-dot { background: var(--accent); border-color: var(--accent); }
+
+.fhm-entry-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+  padding: 8px 4px 0 0;
+  flex-shrink: 0;
+}
+
+/* Usuario resaltado */
+.fhm-meta-author {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
 /* Scrollbars */
 ::-webkit-scrollbar              { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track        { background: transparent; }

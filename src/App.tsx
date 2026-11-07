@@ -510,7 +510,7 @@ function App() {
           <div className="right-col">
             {leftTab === 'history' && (
               selectedCommitInfo ? (
-                <CommitDiffPanel commit={selectedCommitInfo} fileDiffs={commitFileDiffs} />
+                <CommitDiffPanel commit={selectedCommitInfo} fileDiffs={commitFileDiffs} repoPath={repoPath} />
               ) : (
                 <div className="diff-empty">
                   <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
