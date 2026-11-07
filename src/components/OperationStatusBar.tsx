@@ -29,8 +29,9 @@ export function OperationStatusBar({ repoPath, onOperationAborted, onOperationCo
 
     // Suscribirse al evento del watcher — reacciona solo cuando .git cambia
     let unlisten: UnlistenFn | null = null;
-    listen<void>('repo-changed', () => { checkState(); })
-      .then((fn) => { unlisten = fn; });
+    listen<void>('repo-changed', () => {
+      checkState();
+    }).then((fn) => { unlisten = fn; });
 
     return () => { unlisten?.(); };
   }, [repoPath]);

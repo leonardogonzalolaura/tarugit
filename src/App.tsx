@@ -46,7 +46,7 @@ function App() {
     loading, setLoading,
     conflictOperation, setConflictOperation,
     refreshStatus, openRepo, cloneRepo,
-    handleBranchSwitch, handleConflictDetected, handleOperationAborted,
+    handleConflictDetected, handleOperationAborted,
   } = useRepository(addRepo);
 
   const {
@@ -474,7 +474,7 @@ function App() {
                     <HistoryPanel
                       repoPath={repoPath}
                       currentBranch={repoInfo.current_branch}
-                      onRefresh={handleBranchSwitch}
+                      onRefresh={refreshAll}
                       onConflictOperation={handleConflictDetected}
                       compactMode
                       onCommitSelect={(commit, diffs) => {

@@ -124,7 +124,6 @@ pub async fn clone_repository(url: String, path: String) -> Result<RepoInfo, Str
 pub fn get_repo_status(repo_path: String) -> Result<RepoInfo, String> {
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     
-    // Detectar si hay operación en curso (rebase, merge, cherry-pick)
     let git_dir = repo.path().to_path_buf();
     let is_cherry_picking = git_dir.join("CHERRY_PICK_HEAD").exists();
     let is_rebasing = git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists();
@@ -132,9 +131,14 @@ pub fn get_repo_status(repo_path: String) -> Result<RepoInfo, String> {
     
     let has_pending_operation = is_cherry_picking || is_rebasing || is_merging;
     
-    // Si hay cherry-pick en curso, también verificar el archivo CHERRY_PICK_HEAD
-    if is_cherry_picking {
-        log::info!("Cherry-pick en curso detectado");
+    log::info!("[get_repo_status] repo={} cherry={} rebase={} merge={}", 
+        repo_path, is_cherry_picking, is_rebasing, is_merging);
+    
+    // Forzar recarga del índice desde disco para que libgit2 vea el estado real
+    if has_pending_operation {
+        if let Ok(mut index) = repo.index() {
+            let _ = index.read(true);
+        }
     }
     
     get_repo_info(&repo, has_pending_operation)
@@ -142,8 +146,6 @@ pub fn get_repo_status(repo_path: String) -> Result<RepoInfo, String> {
 
 #[command]
 pub fn get_repo_state(repo_path: String) -> Result<RepoState, String> {
-    // `repo.path()` apunta al gitdir real. En un worktree vinculado es
-    // `.git/worktrees/<nombre>`, no `<worktree>/.git` (que es un archivo).
     let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
     let git_dir = repo.path();
     
@@ -153,6 +155,9 @@ pub fn get_repo_state(repo_path: String) -> Result<RepoState, String> {
     let is_merging = git_dir.join("MERGE_HEAD").exists();
     
     let is_cherry_picking = git_dir.join("CHERRY_PICK_HEAD").exists();
+    
+    log::info!("[get_repo_state] git_dir={:?} cherry_picking={} merging={} rebasing={}", 
+        git_dir, is_cherry_picking, is_merging, is_rebasing);
     
     let current_operation = if is_rebasing {
         Some("rebase".to_string())
@@ -220,24 +225,42 @@ fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoI
         }
     };
     
-    // Si hay una operación pendiente, verificar también archivos con conflicto en el índice
+    // Si hay una operación pendiente, verificar también archivos con conflicto en el índice.
+    // Esto es necesario porque libgit2's is_conflicted() puede no detectar todos los casos,
+    // especialmente cuando el archivo en disco ya fue editado manualmente.
     if has_pending_operation {
         if let Ok(index) = repo.index() {
             log::info!("Verificando índice en busca de conflictos...");
             for entry in index.iter() {
+                // index.iter() devuelve todas las entries incluyendo stages 1,2,3.
+                // El stage se almacena en los bits 12-15 del campo flags.
+                let stage = ((entry.flags >> 12) & 0x3) as i32;
+                // Solo procesamos stage 0 (archivos normales) y stage 1 (base del conflicto)
+                // para no procesar el mismo path tres veces.
+                if stage > 1 { continue; }
+                
                 let path = String::from_utf8_lossy(&entry.path).to_string();
                 
-                // Verificar si el archivo tiene stages múltiples (1,2,3)
+                // Verificar si el archivo tiene stages múltiples (conflicto real)
                 let has_conflict_stages = index.get_path(Path::new(&path), 1).is_some()
                     || index.get_path(Path::new(&path), 2).is_some()
                     || index.get_path(Path::new(&path), 3).is_some();
                 
-                if has_conflict_stages && !files.iter().any(|f| f.path == path) {
-                    log::info!("Archivo en conflicto encontrado en índice: {}", path);
-                    files.push(FileStatus { 
-                        path, 
-                        status: "conflicted".to_string() 
-                    });
+                if has_conflict_stages {
+                    // Si ya existe en la lista (ej: marcado como 'modified' por libgit2),
+                    // actualizar su estado a 'conflicted'
+                    if let Some(existing) = files.iter_mut().find(|f| f.path == path) {
+                        if existing.status != "conflicted" {
+                            log::info!("Actualizando archivo a conflicted (era {}): {}", existing.status, path);
+                            existing.status = "conflicted".to_string();
+                        }
+                    } else {
+                        log::info!("Archivo en conflicto encontrado en índice: {}", path);
+                        files.push(FileStatus { 
+                            path, 
+                            status: "conflicted".to_string() 
+                        });
+                    }
                 }
             }
         }
@@ -258,19 +281,39 @@ fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoI
         if let Ok(output) = output {
             let status_output = String::from_utf8_lossy(&output.stdout);
             for line in status_output.lines() {
-                if line.starts_with("UU") {
-                    let path = if line.len() > 3 { &line[3..] } else { "" };
-                    if !path.is_empty() && !files.iter().any(|f| f.path == path) {
-                        log::info!("Archivo en conflicto detectado por git status: {}", path);
-                        files.push(FileStatus { 
-                            path: path.to_string(), 
-                            status: "conflicted".to_string() 
-                        });
+                if line.len() < 3 { continue; }
+                // Todos los códigos de estado que indican conflicto en git status --porcelain:
+                // UU = both modified, AA = both added, DD = both deleted
+                // AU = added by us, UA = added by them
+                // DU = deleted by us, UD = deleted by them
+                let xy = &line[..2];
+                let is_conflict = matches!(xy, "UU" | "AA" | "DD" | "AU" | "UA" | "DU" | "UD");
+                if is_conflict {
+                    let path = line[3..].trim();
+                    if !path.is_empty() {
+                        // Actualizar a conflicted si ya existía con otro estado, o agregar si no estaba
+                        if let Some(existing) = files.iter_mut().find(|f| f.path == path) {
+                            if existing.status != "conflicted" {
+                                log::info!("Actualizando a conflicted por porcelain (era {}): {}", existing.status, path);
+                                existing.status = "conflicted".to_string();
+                            }
+                        } else {
+                            log::info!("Archivo en conflicto detectado por git status ({}): {}", xy, path);
+                            files.push(FileStatus { 
+                                path: path.to_string(), 
+                                status: "conflicted".to_string() 
+                            });
+                        }
                     }
                 }
             }
         }
     }
+    
+    log::info!("[get_repo_info] total archivos: {}, conflictuados: {:?}", 
+        files.len(),
+        files.iter().filter(|f| f.status == "conflicted").map(|f| f.path.as_str()).collect::<Vec<_>>()
+    );
     
     Ok(RepoInfo {
         current_branch,
@@ -285,17 +328,31 @@ fn get_repo_info(repo: &Repository, has_pending_operation: bool) -> Result<RepoI
 pub fn get_conflicted_files(repo_path: String) -> Result<Vec<String>, String> {
     log::info!("Obteniendo archivos en conflicto en: {}", repo_path);
     
+    // Usar git status --porcelain para capturar todos los tipos de conflicto:
+    // UU (both modified), AA (both added), DD (both deleted),
+    // AU/UA (added by one side), DU/UD (deleted by one side)
     let output = create_git_command()
-        .args(["diff", "--name-only", "--diff-filter=U"])
+        .args(["status", "--porcelain"])
         .current_dir(&repo_path)
         .output()
-        .map_err(|e| format!("Error ejecutando git diff: {}", e))?;
+        .map_err(|e| format!("Error ejecutando git status: {}", e))?;
     
     let output_str = String::from_utf8_lossy(&output.stdout);
     let files: Vec<String> = output_str
         .lines()
-        .filter(|line| !line.is_empty())
-        .map(|s| s.to_string())
+        .filter(|line| {
+            if line.len() < 2 { return false; }
+            let xy = &line[..2];
+            matches!(xy, "UU" | "AA" | "DD" | "AU" | "UA" | "DU" | "UD")
+        })
+        .filter_map(|line| {
+            if line.len() > 3 {
+                let path = line[3..].trim();
+                if path.is_empty() { None } else { Some(path.to_string()) }
+            } else {
+                None
+            }
+        })
         .collect();
     
     log::info!("Archivos en conflicto encontrados: {:?}", files);
@@ -965,22 +1022,38 @@ pub fn cherry_pick_commit(repo_path: String, commit_id: String) -> Result<String
     if output.status.success() {
         Ok(stdout)
     } else {
-        if stderr.contains("CONFLICT") || stderr.contains("conflict") || stdout.contains("CONFLICT") {
+        // Caso especial: el commit ya fue aplicado previamente → cherry-pick queda vacío.
+        // Git deja CHERRY_PICK_HEAD pero no hay conflictos reales; la solución es --skip.
+        if stderr.contains("cherry-pick is now empty") || stderr.contains("allow-empty") {
+            log::info!("cherry-pick resultó vacío (commit ya aplicado), ejecutando --skip automáticamente");
+            let _ = create_git_command()
+                .args(["cherry-pick", "--skip"])
+                .current_dir(&repo_path)
+                .output();
+            return Err(format!("CHERRY_PICK_EMPTY: El commit ya estaba aplicado en esta rama, se omitió automáticamente."));
+        }
+
+        // Caso normal: conflictos reales de merge.
+        if stderr.contains("CONFLICT") || stdout.contains("CONFLICT") {
             let status_output = create_git_command()
                 .args(["status", "--porcelain"])
                 .current_dir(&repo_path)
                 .output()
                 .map_err(|e| e.to_string())?;
-            
-            let status = String::from_utf8_lossy(&status_output.stdout);
-            let conflicted_files: Vec<&str> = status
+
+            let status_output = String::from_utf8_lossy(&status_output.stdout);
+            let conflicted_files: Vec<&str> = status_output
                 .lines()
-                .filter(|line| line.starts_with("UU") || line.contains("both modified"))
+                .filter(|line| {
+                    if line.len() < 2 { return false; }
+                    let xy = &line[..2];
+                    matches!(xy, "UU" | "AA" | "DD" | "AU" | "UA" | "DU" | "UD")
+                })
                 .map(|line| {
-                    if line.len() > 3 { &line[3..] } else { line }
+                    if line.len() > 3 { line[3..].trim() } else { line }
                 })
                 .collect();
-            
+
             if !conflicted_files.is_empty() {
                 return Err(format!("CONFLICT: Cherry-pick generó conflictos en los siguientes archivos:\n{}", conflicted_files.join("\n")));
             }

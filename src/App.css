@@ -5637,6 +5637,87 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   color: var(--text-muted);
 }
 
+/* ─── Resizers (cr-resizer) ─────────────────────────────────────────────── */
+/* Divisor vertical (entre paneles lado a lado) */
+.cr-resizer-v {
+  flex-shrink: 0;
+  width: 5px;
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+  transition: background .15s;
+  z-index: 10;
+}
+.cr-resizer-v::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px;
+  height: 24px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.cr-resizer-v:hover,
+.cr-resizer-v:active {
+  background: var(--accent-dim);
+}
+.cr-resizer-v:hover::after,
+.cr-resizer-v:active::after {
+  opacity: 0.6;
+}
+
+/* Divisor horizontal (entre paneles apilados) */
+.cr-resizer-h {
+  flex-shrink: 0;
+  height: 5px;
+  background: var(--border);
+  cursor: row-resize;
+  position: relative;
+  transition: background .15s;
+  z-index: 10;
+}
+.cr-resizer-h::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 1px;
+  width: 24px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.cr-resizer-h:hover,
+.cr-resizer-h:active {
+  background: var(--accent-dim);
+}
+.cr-resizer-h:hover::after,
+.cr-resizer-h:active::after {
+  opacity: 0.6;
+}
+
+/* Handle visual del resizer vertical (layout side) */
+.cr-resizer-v-handle {
+  width: 3px;
+  height: 32px;
+  background: var(--text-muted);
+  border-radius: 3px;
+  opacity: 0.25;
+  transition: opacity .15s, background .15s;
+  pointer-events: none;
+}
+[data-resizer]:hover .cr-resizer-v-handle,
+[data-resizer]:active .cr-resizer-v-handle {
+  opacity: 0.7;
+  background: var(--accent);
+}
+
 /* ─── Create Branch Modal ─────────────────────────────────── */
 .cbm {
   padding: 20px 22px !important;

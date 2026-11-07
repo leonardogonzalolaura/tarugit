@@ -148,12 +148,16 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
       await invoke('switch_branch', { repoPath, branchName: targetBranch });
       const orderedCommits = [...commitIds].reverse();
       let hasConflict = false;
+      let skippedCount = 0;
       for (const commitId of orderedCommits) {
         try {
           await invoke<string>('cherry_pick_commit', { repoPath, commitId });
         } catch (e: any) {
           const errStr = String(e);
-          if (errStr.includes('CONFLICT') || errStr.toLowerCase().includes('conflict') || errStr.includes('CHERRY_PICK_IN_PROGRESS')) {
+          if (errStr.includes('CHERRY_PICK_EMPTY')) {
+            // Commit ya aplicado en la rama destino → el backend ya hizo --skip, simplemente lo omitimos
+            skippedCount++;
+          } else if (errStr.includes('CONFLICT') || errStr.includes('CHERRY_PICK_IN_PROGRESS')) {
             hasConflict = true;
             break;
           } else {
@@ -163,11 +167,16 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
       }
       if (hasConflict) {
         onConflictOperation?.({ type: 'cherry-pick', originalBranch: currentBranch });
-        setTimeout(() => onRefresh?.(), 500);
+        // Refrescar antes de mostrar el alert para que los archivos en conflicto ya estén cargados
+        await onRefresh?.();
         alert(`⚠️ Cherry-pick detectó conflictos. Revisa la lista de cambios pendientes.`);
       } else {
         await invoke('switch_branch', { repoPath, branchName: currentBranch });
-        alert(`✅ Cherry-Pick exitoso: ${commitIds.length} commit(s) aplicado(s) en "${targetBranch}"`);
+        const applied = commitIds.length - skippedCount;
+        const msg = applied > 0
+          ? `✅ Cherry-Pick exitoso: ${applied} commit(s) aplicado(s) en "${targetBranch}"${skippedCount > 0 ? `\n(${skippedCount} commit(s) omitido(s) por ya estar aplicados)` : ''}`
+          : `ℹ️ Todos los commits seleccionados ya estaban aplicados en "${targetBranch}"`;
+        alert(msg);
         setSelectedCommits(new Set());
         await loadHistory();
         onRefresh?.();
