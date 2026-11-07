@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { BranchInfo, FileDiff } from '../../types';
 import { CherryPickModal } from './CherryPickModal';
 import { FileDiffViewer } from './FileDiffViewer';
@@ -24,10 +25,17 @@ interface HistoryPanelProps {
   onCommitSelect?: (commit: ExtendedCommitInfo | null, fileDiffs: FileDiff[]) => void;
   focusCommit?: string | null;
   onFocusConsumed?: () => void;
+  /** Indica si el panel está actualmente visible (tab activa) */
+  isVisible?: boolean;
 }
 
-export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOperation, compactMode = false, onCommitSelect, focusCommit, onFocusConsumed }: HistoryPanelProps) {
+const PER_PAGE = 300;
+
+export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOperation, compactMode = false, onCommitSelect, focusCommit, onFocusConsumed, isVisible = true }: HistoryPanelProps) {
   const [commits, setCommits] = useState<ExtendedCommitInfo[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
@@ -45,6 +53,7 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
   const [listWidth, setListWidth] = useState(30);
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pendingRefresh = useRef(false);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -77,21 +86,65 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
   }, [onMouseMove, onMouseUp]);
 
   useEffect(() => {
+    if (!repoPath) return;
+    // Carga inicial
     loadHistory();
     loadBranches();
+
+    // Recargar cuando cambia el repo (commit, cherry-pick, etc.)
+    // Si el panel está oculto, marca pendiente y recarga al volver a ser visible
+    let unlisten: (() => void) | null = null;
+    listen<void>('repo-changed', () => {
+      if (isVisible) {
+        loadHistory();
+        loadBranches();
+      } else {
+        pendingRefresh.current = true;
+      }
+    }).then(fn => { unlisten = fn; });
+
+    return () => { unlisten?.(); };
   }, [repoPath, currentBranch]);
+
+  // Cuando el panel vuelve a ser visible, ejecutar la recarga pendiente si la hay
+  useEffect(() => {
+    if (isVisible && pendingRefresh.current) {
+      pendingRefresh.current = false;
+      loadHistory();
+      loadBranches();
+    }
+  }, [isVisible]);
 
   const loadHistory = async () => {
     if (!repoPath) return;
     setLoading(true);
     try {
-      const result = await invoke<ExtendedCommitInfo[]>('get_commit_history_with_timestamp', { repoPath });
+      const result = await invoke<ExtendedCommitInfo[]>('get_commit_history_with_timestamp', { repoPath, page: 0, perPage: PER_PAGE });
       setCommits(result);
+      setPage(0);
+      setHasMore(result.length === PER_PAGE);
     } catch (e) {
       console.error('Error cargando historial:', e);
       setCommits([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!repoPath || loadingMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const result = await invoke<ExtendedCommitInfo[]>('get_commit_history_with_timestamp', { repoPath, page: nextPage, perPage: PER_PAGE });
+      setCommits(prev => [...prev, ...result]);
+      setPage(nextPage);
+      setHasMore(result.length === PER_PAGE);
+    } catch (e) {
+      console.error('Error cargando más commits:', e);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -222,13 +275,14 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
     onFocusConsumed?.();
   }, [focusCommit, commits]);
 
-  const filtered = search
+  const filtered = useMemo(() => search
     ? commits.filter(c =>
         c.message.toLowerCase().includes(search.toLowerCase()) ||
         c.author.toLowerCase().includes(search.toLowerCase()) ||
         c.id.toLowerCase().includes(search.toLowerCase())
       )
-    : commits;
+    : commits,
+  [commits, search]);
 
   const selectedCount = selectedCommits.size;
   const selectedCommitData = selectedCommit ? commits.find(c => c.id === selectedCommit) : null;
@@ -253,7 +307,7 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
         <div className="hp-header">
           <div className="hp-header-left">
             <span className="hp-title">Historial</span>
-            <span className="hp-count">{commits.length}</span>
+            <span className="hp-count">{commits.length}{hasMore ? '+' : ''}</span>
           </div>
           <div className="hp-header-actions">
             <button className={`hp-btn ${showSearch ? 'active' : ''}`} onClick={() => setShowSearch(v => !v)} title="Buscar">
@@ -353,6 +407,15 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
                 onToggleSelection={handleToggleSelection}
               />
             ))}
+            {!search && hasMore && (
+              <button
+                className="hp-load-more"
+                onClick={loadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? <><span className="spinner-sm" /> Cargando...</> : `Mostrando ${commits.length} commits — cargar más`}
+              </button>
+            )}
           </div>
         )}
       </div>

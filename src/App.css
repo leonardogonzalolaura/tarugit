@@ -3464,6 +3464,29 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   padding: 4px 0;
 }
 
+.hp-load-more {
+  margin: 6px 10px 10px;
+  padding: 7px 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.hp-load-more:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.hp-load-more:disabled { opacity: .5; cursor: default; }
+
 /* ─── History Commit Item (hc-*) ─────────────────────────────────────────── */
 .hc-item {
   display: flex;

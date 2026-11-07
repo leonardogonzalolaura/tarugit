@@ -939,32 +939,49 @@ pub struct CommitInfoWithTimestamp {
 }
 
 #[command]
-pub fn get_commit_history_with_timestamp(repo_path: String) -> Result<Vec<CommitInfoWithTimestamp>, String> {
-    log::info!("Obteniendo historial con timestamp en: {}", repo_path);
-    let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
-    let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
-    
-    if revwalk.push_head().is_err() {
-        return Ok(Vec::new());
-    }
-    
-    revwalk.set_sorting(git2::Sort::TIME).map_err(|e| e.to_string())?;
-    let mut history = Vec::new();
-    
-    for oid_result in revwalk {
-        if let Ok(oid) = oid_result {
-            if let Ok(commit) = repo.find_commit(oid) {
-                history.push(CommitInfoWithTimestamp {
-                    id: oid.to_string(),
-                    message: commit.message().unwrap_or("").trim().to_string(),
-                    author: commit.author().name().unwrap_or("Unknown").to_string(),
-                    timestamp: commit.time().seconds(),
-                });
+pub async fn get_commit_history_with_timestamp(repo_path: String, page: Option<usize>, per_page: Option<usize>) -> Result<Vec<CommitInfoWithTimestamp>, String> {
+    let per_page = per_page.unwrap_or(300);
+    let page = page.unwrap_or(0);
+    let skip = page * per_page;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let repo = Repository::open(&repo_path).map_err(|e| e.to_string())?;
+        let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
+
+        if revwalk.push_head().is_err() {
+            return Ok(Vec::new());
+        }
+
+        revwalk.set_sorting(git2::Sort::TIME).map_err(|e| e.to_string())?;
+
+        let mut history = Vec::with_capacity(per_page);
+        let mut count = 0usize;
+
+        for oid_result in revwalk {
+            if let Ok(oid) = oid_result {
+                if count < skip {
+                    count += 1;
+                    continue;
+                }
+                if history.len() >= per_page {
+                    break;
+                }
+                if let Ok(commit) = repo.find_commit(oid) {
+                    history.push(CommitInfoWithTimestamp {
+                        id: oid.to_string(),
+                        message: commit.message().unwrap_or("").trim().to_string(),
+                        author: commit.author().name().unwrap_or("Unknown").to_string(),
+                        timestamp: commit.time().seconds(),
+                    });
+                }
+                count += 1;
             }
         }
-    }
-    log::info!("Se encontraron {} commits", history.len());
-    Ok(history)
+
+        Ok(history)
+    })
+    .await
+    .map_err(|e| format!("Error en hilo secundario: {}", e))?
 }
 
 #[command]

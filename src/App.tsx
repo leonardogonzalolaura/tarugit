@@ -469,21 +469,20 @@ function App() {
                   </>
                 )}
 
-                {leftTab === 'history' && (
-                  <div className="left-history">
-                    <HistoryPanel
-                      repoPath={repoPath}
-                      currentBranch={repoInfo.current_branch}
-                      onRefresh={refreshAll}
-                      onConflictOperation={handleConflictDetected}
-                      compactMode
-                      onCommitSelect={(commit, diffs) => {
-                        setSelectedCommitInfo(commit);
-                        setCommitFileDiffs(diffs);
-                      }}
-                    />
-                  </div>
-                )}
+                <div className="left-history" style={{ display: leftTab === 'history' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                  <HistoryPanel
+                    repoPath={repoPath}
+                    currentBranch={repoInfo.current_branch}
+                    onRefresh={refreshAll}
+                    onConflictOperation={handleConflictDetected}
+                    compactMode
+                    isVisible={leftTab === 'history'}
+                    onCommitSelect={(commit, diffs) => {
+                      setSelectedCommitInfo(commit);
+                      setCommitFileDiffs(diffs);
+                    }}
+                  />
+                </div>
 
               {leftTab === 'stash' && (
                 <div className="left-history">
