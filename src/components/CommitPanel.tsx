@@ -11,7 +11,6 @@ interface CommitPanelProps {
   onCommit: (message: string, user?: CommitUser, amend?: boolean) => void;
   users?: CommitUser[];
   onAddUser?: () => void;
-  onStashClick?: () => void;
   defaultAuthorIndex?: number;
   onSetDefaultAuthor?: (idx: number) => void;
   onDeleteUser?: (idx: number) => void;
@@ -22,12 +21,6 @@ const SvgRocket = () => (
   <svg viewBox="0 0 16 16" width="12" height="12" fill="currentcolor">
     <path d="M14.064 0a8.746 8.746 0 0 0-6.186 2.584l-3.317 3.38a.752.752 0 0 0-.175.281L3.165 9.27a.75.75 0 0 0 .173.798l2.648 2.66a.75.75 0 0 0 .796.174l3.057-1.227a.76.76 0 0 0 .28-.177l3.317-3.38A8.746 8.746 0 0 0 16 1.938V.75A.75.75 0 0 0 15.25 0ZM9.695 6.318a2 2 0 1 1-2.827-2.83 2 2 0 0 1 2.827 2.83Z"/>
     <path d="M8.278 10.583c-.82.835-2.044 1.604-3.205 2.04.438-1.162 1.208-2.39 2.043-3.21l.39.392.772.778ZM1.137 10.429a2.416 2.416 0 0 0-.805 2.504l.222.681a.25.25 0 0 0 .247.176h2.058a7.645 7.645 0 0 1 .558-.54c.36-.333.803-.72 1.3-1.089.037-1.108.64-2.24 1.288-2.903l-.197-.196-.587-.586c-.664.648-1.797 1.254-2.906 1.291-.37.497-.756.94-1.089 1.3-.17.184-.328.365-.48.546l.552.415Z"/>
-  </svg>
-);
-
-const SvgPackage = () => (
-  <svg viewBox="0 0 16 16" width="12" height="12" fill="currentcolor">
-    <path d="M8.023.084a.748.748 0 0 0-.306.058L1.498 2.607A.748.748 0 0 0 1 3.25v9.5c0 .313.195.594.498.71l6.219 2.456a.752.752 0 0 0 .566 0l6.219-2.456A.749.749 0 0 0 15 12.75v-9.5a.75.75 0 0 0-.498-.643L8.523.142a.748.748 0 0 0-.5-.058ZM8 1.586l4.047 1.59L8 4.8 3.953 3.176 8 1.586ZM2.5 11.3V5.286l5 1.92v6.008l-5-1.914Zm11 0-5 1.914V7.206l5-1.92V11.3Z"/>
   </svg>
 );
 
@@ -67,7 +60,7 @@ const SvgInfo = () => (
   </svg>
 );
 
-export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUser, onStashClick, defaultAuthorIndex = 0, onSetDefaultAuthor, onDeleteUser, lastCommitMessage = '' }: CommitPanelProps) {
+export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUser, defaultAuthorIndex = 0, onSetDefaultAuthor, onDeleteUser, lastCommitMessage = '' }: CommitPanelProps) {
   const [message, setMessage] = useState('');
   const [selectedUserIndex, setSelectedUserIndex] = useState<number>(defaultAuthorIndex);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -196,11 +189,6 @@ export function CommitPanel({ fileCount, loading, onCommit, users = [], onAddUse
           {loading ? <span className="spinner-sm" /> : <SvgRocket />}
           {amend ? 'Amendar' : 'Commit'}
         </button>
-        {onStashClick && (
-          <button type="button" onClick={onStashClick} disabled={loading} className="cp-btn-stash" title="Guardar cambios en Stash">
-            <SvgPackage /> Stash
-          </button>
-        )}
       </div>
     </div>
   );

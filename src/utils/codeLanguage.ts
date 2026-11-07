@@ -10,6 +10,7 @@ import { yaml } from '@codemirror/lang-yaml';
 import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
 import { php } from '@codemirror/lang-php';
+import { csharp } from '@replit/codemirror-lang-csharp';
 import type { LanguageSupport } from '@codemirror/language';
 
 export function getLanguageForDisplay(filePath: string): string {
@@ -40,6 +41,7 @@ export function getCodeMirrorLang(filePath?: string): LanguageSupport | undefine
     py: () => python(), python: () => python(),
     java: () => java(),
     c: () => cpp(), cpp: () => cpp(), h: () => cpp(),
+    cs: () => csharp(),
     rs: () => rust(), rust: () => rust(),
     json: () => json(),
     yaml: () => yaml(), yml: () => yaml(),

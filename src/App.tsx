@@ -253,6 +253,8 @@ function App() {
     setActivePanel('diff');
     setLeftTab('changes');
     setResolvingConflictFile(null);
+    setSelectedCommitInfo(null);
+    setCommitFileDiffs([]);
     return result;
   }, [openRepo]);
 
@@ -460,7 +462,6 @@ function App() {
                       onCommit={makeCommit}
                       users={users}
                       onAddUser={handleAddUser}
-                      onStashClick={() => setShowStashModal(true)}
                       defaultAuthorIndex={defaultAuthorIndex}
                       onSetDefaultAuthor={setDefaultAuthorIndex}
                       onDeleteUser={deleteUser}
@@ -493,6 +494,7 @@ function App() {
                     onRefresh={refreshAll}
                     onSelectStash={handleSelectStash}
                     selectedStashId={selectedStash?.id ?? null}
+                    onNewStash={() => setShowStashModal(true)}
                   />
                 </div>
               )}

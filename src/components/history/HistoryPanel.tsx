@@ -85,10 +85,17 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
     };
   }, [onMouseMove, onMouseUp]);
 
+  // Limpiar selección inmediatamente al cambiar de repo, antes de que lleguen los datos nuevos
+  useEffect(() => {
+    setSelectedCommit(null);
+    setFileDiffs([]);
+    setSelectedCommits(new Set());
+  }, [repoPath]);
+
   useEffect(() => {
     if (!repoPath) return;
-    // Carga inicial
-    loadHistory();
+    // Carga inicial — auto-selecciona el primer commit para limpiar datos del repo anterior
+    loadHistory(true);
     loadBranches();
 
     // Recargar cuando cambia el repo (commit, cherry-pick, etc.)
@@ -115,7 +122,7 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
     }
   }, [isVisible]);
 
-  const loadHistory = async () => {
+  const loadHistory = async (autoSelectFirst = false) => {
     if (!repoPath) return;
     setLoading(true);
     try {
@@ -123,6 +130,14 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
       setCommits(result);
       setPage(0);
       setHasMore(result.length === PER_PAGE);
+      // Al cambiar de repo, limpiar selección y auto-seleccionar el primer commit
+      if (autoSelectFirst && result.length > 0) {
+        setSelectedCommit(result[0].id);
+        setFileDiffs([]);
+        const diffs = await invoke<FileDiff[]>('get_commit_diff_structured', { repoPath, commitId: result[0].id });
+        setFileDiffs(diffs ?? []);
+        onCommitSelect?.(result[0], diffs ?? []);
+      }
     } catch (e) {
       console.error('Error cargando historial:', e);
       setCommits([]);
@@ -315,7 +330,7 @@ export function HistoryPanel({ repoPath, currentBranch, onRefresh, onConflictOpe
                 <path d="M6.5 1a5.5 5.5 0 1 0 3.38 9.82l2.65 2.65a.75.75 0 1 0 1.06-1.06l-2.65-2.65A5.5 5.5 0 0 0 6.5 1Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
               </svg>
             </button>
-            <button className="hp-btn" onClick={loadHistory} title="Recargar">
+            <button className="hp-btn" onClick={() => loadHistory()} title="Recargar">
               <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                 <path d="M8 1.5a6.5 6.5 0 1 0 6.016 4.035.75.75 0 0 0-1.382-.586A5 5 0 1 1 8 3a5 5 0 0 1 3.5 1.5l-1.5 1.5h4.25V1.5l-1.28 1.28A6.5 6.5 0 0 0 8 1.5Z"/>
               </svg>

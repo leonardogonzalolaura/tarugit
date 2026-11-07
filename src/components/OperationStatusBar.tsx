@@ -20,6 +20,7 @@ export function OperationStatusBar({ repoPath, onOperationAborted, onOperationCo
   const [loading, setLoading] = useState(false);
 
   const checkingRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!repoPath) return;
@@ -27,13 +28,18 @@ export function OperationStatusBar({ repoPath, onOperationAborted, onOperationCo
     // Verificar estado inicial al montar
     checkState();
 
-    // Suscribirse al evento del watcher — reacciona solo cuando .git cambia
+    // Suscribirse al evento del watcher con debounce para evitar
+    // lecturas antes de que git haya terminado de escribir sus archivos de estado
     let unlisten: UnlistenFn | null = null;
     listen<void>('repo-changed', () => {
-      checkState();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => checkState(), 300);
     }).then((fn) => { unlisten = fn; });
 
-    return () => { unlisten?.(); };
+    return () => {
+      unlisten?.();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [repoPath]);
 
   const checkState = async () => {

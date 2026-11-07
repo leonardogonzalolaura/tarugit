@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { StashInfo } from '../types';
+import { toast } from './Toast';
 
 interface StashPanelProps {
   repoPath: string;
@@ -9,6 +10,7 @@ interface StashPanelProps {
   onRefresh: () => void;
   onSelectStash?: (stash: StashInfo) => void;
   selectedStashId?: string | null;
+  onNewStash?: () => void;
 }
 
 const SvgArchive = () => <svg width="14" height="14" viewBox="0 0 16 16" fill="currentcolor"><path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v1.5A1.75 1.75 0 0 1 14.25 6H1.75A1.75 1.75 0 0 1 0 4.25v-1.5C0 1.784.784 1 1.75 1ZM1.75 7h1.5v2.25c0 .414.336.75.75.75h6a.75.75 0 0 0 .75-.75V7h1.5v2.25A2.25 2.25 0 0 1 10 11.5H6a2.25 2.25 0 0 1-2.25-2.25Zm10.5-2.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>;
@@ -19,7 +21,7 @@ const SvgApply = () => <svg width="11" height="11" viewBox="0 0 16 16" fill="cur
 const SvgTrash = () => <svg width="11" height="11" viewBox="0 0 16 16" fill="currentcolor"><path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5h-11a.75.75 0 0 1 0-1.5H5V1.75A1.75 1.75 0 0 1 6.75 0h2.5A1.75 1.75 0 0 1 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.75 1.75 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15Z"/></svg>;
 const SvgEmpty = () => <svg width="28" height="28" viewBox="0 0 16 16" fill="currentcolor" opacity=".35"><path d="M1.75 1h12.5c.966 0 1.75.784 1.75 1.75v1.5A1.75 1.75 0 0 1 14.25 6H1.75A1.75 1.75 0 0 1 0 4.25v-1.5C0 1.784.784 1 1.75 1ZM1.75 7h1.5v2.25c0 .414.336.75.75.75h6a.75.75 0 0 0 .75-.75V7h1.5v2.25A2.25 2.25 0 0 1 10 11.5H6a2.25 2.25 0 0 1-2.25-2.25ZM6.5 2.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1Z"/></svg>;
 
-export function StashPanel({ repoPath, stashes, loading, onRefresh, onSelectStash, selectedStashId }: StashPanelProps) {
+export function StashPanel({ repoPath, stashes, loading, onRefresh, onSelectStash, selectedStashId, onNewStash }: StashPanelProps) {
   const [localLoading, setLocalLoading] = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
 
@@ -27,10 +29,10 @@ export function StashPanel({ repoPath, stashes, loading, onRefresh, onSelectStas
     setLocalLoading(stashId);
     try {
       const msg = await invoke<string>('apply_stash', { repoPath, stashId });
-      alert(`✅ ${msg}`);
+      toast.success(msg);
       onRefresh();
     } catch (e) {
-      alert(`⚠️ Error al aplicar stash: ${e}`);
+      toast.error(`Error al aplicar stash: ${e}`);
     } finally {
       setLocalLoading(null);
     }
@@ -40,38 +42,38 @@ export function StashPanel({ repoPath, stashes, loading, onRefresh, onSelectStas
     setLocalLoading(stashId);
     try {
       const msg = await invoke<string>('pop_stash', { repoPath, stashId });
-      alert(`✅ ${msg}`);
+      toast.success(msg);
       onRefresh();
     } catch (e) {
-      alert(`⚠️ Error al hacer pop de stash: ${e}`);
+      toast.error(`Error al hacer pop de stash: ${e}`);
     } finally {
       setLocalLoading(null);
     }
   };
 
   const handleDrop = async (stashId: string) => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente el stash "${stashId}"?`)) return;
+    if (!confirm(`¿Eliminar permanentemente el stash "${stashId}"?`)) return;
     setLocalLoading(stashId);
     try {
       const msg = await invoke<string>('drop_stash', { repoPath, stashId });
-      alert(`✅ ${msg}`);
+      toast.success(msg);
       onRefresh();
     } catch (e) {
-      alert(`⚠️ Error al eliminar stash: ${e}`);
+      toast.error(`Error al eliminar stash: ${e}`);
     } finally {
       setLocalLoading(null);
     }
   };
 
   const handleClearAll = async () => {
-    if (!confirm(`¿Estás seguro de eliminar TODOS los stashes (${stashes.length})? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar TODOS los stashes (${stashes.length})? Esta acción no se puede deshacer.`)) return;
     setClearingAll(true);
     try {
       const msg = await invoke<string>('clear_all_stashes', { repoPath });
-      alert(`✅ ${msg}`);
+      toast.success(msg);
       onRefresh();
     } catch (e) {
-      alert(`⚠️ Error al limpiar stashes: ${e}`);
+      toast.error(`Error al limpiar stashes: ${e}`);
     } finally {
       setClearingAll(false);
     }
@@ -83,8 +85,16 @@ export function StashPanel({ repoPath, stashes, loading, onRefresh, onSelectStas
         <SvgEmpty />
         <div className="sp-empty-title">Sin stashes guardados</div>
         <div className="sp-empty-desc">
-          Usa stash para guardar temporalmente tus cambios y mantener limpio tu espacio de trabajo.
+          Guarda temporalmente tus cambios para mantener limpio tu espacio de trabajo.
         </div>
+        {onNewStash && (
+          <button className="sp-btn-new" onClick={onNewStash}>
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/>
+            </svg>
+            Nuevo Stash
+          </button>
+        )}
       </div>
     );
   }
@@ -100,6 +110,14 @@ export function StashPanel({ repoPath, stashes, loading, onRefresh, onSelectStas
           <span className="sp-count">{stashes.length}</span>
         </div>
         <div className="sp-header-actions">
+          {onNewStash && (
+            <button className="sp-btn-new" onClick={onNewStash} disabled={isDisabled} title="Guardar cambios actuales en un nuevo stash">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/>
+              </svg>
+              Nuevo Stash
+            </button>
+          )}
           <button className="sp-btn danger" onClick={handleClearAll} disabled={isDisabled || stashes.length === 0} title="Eliminar todos los stashes">
             {clearingAll ? <span style={{fontSize:10}}>...</span> : <SvgClear />}
           </button>
