@@ -97,6 +97,8 @@ export function InconsistencyCheckerModal({
   const [editorSourcePath, setEditorSourcePath] = useState('');
   const [editorContent, setEditorContent] = useState('');
   const [editorMatchedLines, setEditorMatchedLines] = useState<number[]>([]);
+  // Línea (0-based) a la que el editor debe saltar; se actualiza al navegar
+  const [editorActiveLine, setEditorActiveLine] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveNotice, setSaveNotice] = useState<SaveNotice | null>(null);
@@ -176,7 +178,7 @@ export function InconsistencyCheckerModal({
     });
   }, []);
 
-  const handleOpenEditor = useCallback(async (fileResult: FileResult) => {
+  const handleOpenEditor = useCallback(async (fileResult: FileResult, targetLine?: number) => {
     try {
       const saved = savedContentsRef.current.get(fileResult.path);
       const content = saved ?? await invoke<string>('read_file_from_commit', {
@@ -195,6 +197,9 @@ export function InconsistencyCheckerModal({
       setEditorSourcePath(fileResult.path);
       setEditorContent(content);
       setEditorMatchedLines(matched);
+      setEditorActiveLine(
+        targetLine !== undefined && matched.includes(targetLine) ? targetLine : (matched[0] ?? null)
+      );
       setSaveError('');
       setSaveNotice(null);
       setView('editor');
@@ -223,6 +228,7 @@ export function InconsistencyCheckerModal({
       ).sort((a, b) => a - b);
 
       setEditorMatchedLines(remainingLines);
+      setEditorActiveLine(remainingLines[0] ?? null);
       setResults(prev => prev.map(r =>
         r.path === editorSourcePath
           ? { ...r, inconsistencies: remaining, resolved: remaining.length === 0 }
@@ -252,6 +258,28 @@ export function InconsistencyCheckerModal({
       setSaving(false);
     }
   }, [repoPath, editorFilePath, editorSourcePath, editorContent]);
+
+  // Navegación entre las líneas con problemas dentro del editor
+  const goToIssue = useCallback((delta: number) => {
+    setEditorActiveLine(prev => {
+      const lines = editorMatchedLines;
+      if (lines.length === 0) return null;
+      const index = prev === null ? -1 : lines.indexOf(prev);
+      const current = index === -1 ? (delta > 0 ? -1 : 0) : index;
+      return lines[(current + delta + lines.length) % lines.length];
+    });
+  }, [editorMatchedLines]);
+
+  useEffect(() => {
+    if (view !== 'editor') return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'F3') return;
+      e.preventDefault();
+      goToIssue(e.shiftKey ? -1 : 1);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [view, goToIssue]);
 
   // ---- Shared styles ----
 
@@ -296,6 +324,26 @@ export function InconsistencyCheckerModal({
     fontSize: '12px',
     cursor: 'pointer',
   };
+
+  const navBtnStyle: React.CSSProperties = {
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: '1px solid var(--border)',
+    borderRadius: '5px',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    cursor: 'pointer',
+    lineHeight: 1,
+  };
+
+  const issueCount = editorMatchedLines.length;
+  const activeIssueIndex = editorActiveLine === null
+    ? -1
+    : editorMatchedLines.indexOf(editorActiveLine);
 
   // ---- Render ----
 
@@ -593,6 +641,9 @@ export function InconsistencyCheckerModal({
                                 {inc.occurrences.map((occ, oidx) => (
                                   <div
                                     key={oidx}
+                                    className="inconsistency-occurrence"
+                                    onClick={() => handleOpenEditor(fileResult, occ.line - 1)}
+                                    title={`Abrir el archivo en la línea ${occ.line}`}
                                     style={{
                                       display: 'flex',
                                       alignItems: 'baseline',
@@ -667,6 +718,46 @@ export function InconsistencyCheckerModal({
               </button>
             </div>
 
+            {/* Barra de navegación entre incidencias */}
+            {issueCount > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 16px',
+                  borderBottom: '1px solid var(--border)',
+                  background: 'var(--bg-base)',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--yellow)' }}>
+                  Inconsistencia {activeIssueIndex >= 0 ? activeIssueIndex + 1 : 1} de {issueCount}
+                </span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  línea {editorActiveLine !== null ? editorActiveLine + 1 : '—'}
+                </span>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    style={navBtnStyle}
+                    onClick={() => goToIssue(-1)}
+                    title="Inconsistencia anterior (Shift+F3)"
+                    aria-label="Inconsistencia anterior"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    style={navBtnStyle}
+                    onClick={() => goToIssue(1)}
+                    title="Siguiente inconsistencia (F3)"
+                    aria-label="Siguiente inconsistencia"
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Editor body */}
             <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
               <ConflictCodeEditor
@@ -674,6 +765,7 @@ export function InconsistencyCheckerModal({
                 filePath={editorFilePath}
                 onChange={setEditorContent}
                 matchedLines={editorMatchedLines}
+                revealLine={editorActiveLine}
                 ariaLabel="Editor de archivo"
                 className="inconsistency-editor"
               />

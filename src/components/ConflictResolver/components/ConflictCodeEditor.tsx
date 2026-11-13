@@ -16,6 +16,8 @@ interface ConflictCodeEditorProps {
   readOnly?: boolean;
   highlightDuplicates?: boolean;
   matchedLines?: number[];
+  /** Índice 0-based de la línea a la que se debe desplazar el editor. */
+  revealLine?: number | null;
 }
 
 const duplicateLineDecoration = Decoration.line({ class: 'cm-dup-line' });
@@ -48,6 +50,17 @@ function buildDuplicateDecorations(doc: Text): DecorationSet {
   }
 
   return builder.finish();
+}
+
+// Desplaza la vista a una línea (0-based), la selecciona y le da foco.
+function revealLineInView(view: EditorView, lineIndex: number) {
+  const lineNumber = Math.min(Math.max(lineIndex + 1, 1), view.state.doc.lines);
+  const line = view.state.doc.line(lineNumber);
+  view.dispatch({
+    selection: { anchor: line.from, head: line.to },
+    effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+  });
+  view.focus();
 }
 
 const duplicateLineField = StateField.define<DecorationSet>({
@@ -137,7 +150,8 @@ export function ConflictCodeEditor({
   ariaLabel,
   readOnly = false,
   highlightDuplicates = false,
-  matchedLines = []
+  matchedLines = [],
+  revealLine = null,
 }: ConflictCodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -147,10 +161,13 @@ export function ConflictCodeEditor({
   const onChangeRef = useRef(onChange);
   const lastMatchedKeyRef = useRef('');
   const matchedLinesRef = useRef(matchedLines);
+  const revealLineRef = useRef<number | null>(revealLine);
+  const lastRevealedRef = useRef<number | null>(null);
 
   valueRef.current = value;
   onChangeRef.current = onChange;
   matchedLinesRef.current = matchedLines;
+  revealLineRef.current = revealLine;
 
   const language = useMemo(() => getCodeMirrorLang(filePath), [filePath]);
   const matchedKey = matchedLines.join(',');
@@ -190,11 +207,26 @@ export function ConflictCodeEditor({
     }
     lastMatchedKeyRef.current = initialMatches.join(',');
 
+    const initialReveal = revealLineRef.current;
+    if (initialReveal !== null) {
+      revealLineInView(view, initialReveal);
+      lastRevealedRef.current = initialReveal;
+    }
+
     return () => {
       view.destroy();
       viewRef.current = null;
     };
   }, [language, ariaLabel, readOnly, highlightDuplicates]);
+
+  // Salta a la incidencia activa cuando cambia (abrir editor o navegar entre incidencias)
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || revealLine === null) return;
+    if (revealLine === lastRevealedRef.current) return;
+    lastRevealedRef.current = revealLine;
+    revealLineInView(view, revealLine);
+  }, [revealLine]);
 
   useEffect(() => {
     const view = viewRef.current;
