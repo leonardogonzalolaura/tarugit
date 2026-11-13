@@ -11,7 +11,11 @@ import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
 import { php } from '@codemirror/lang-php';
 import { csharp } from '@replit/codemirror-lang-csharp';
-import type { LanguageSupport } from '@codemirror/language';
+import { LanguageSupport, StreamLanguage } from '@codemirror/language';
+import { scala, kotlin } from '@codemirror/legacy-modes/mode/clike';
+import { go } from '@codemirror/legacy-modes/mode/go';
+import { ruby } from '@codemirror/legacy-modes/mode/ruby';
+import { swift } from '@codemirror/legacy-modes/mode/swift';
 
 export function getLanguageForDisplay(filePath: string): string {
   if (!filePath) return 'text';
@@ -42,6 +46,11 @@ export function getCodeMirrorLang(filePath?: string): LanguageSupport | undefine
     java: () => java(),
     c: () => cpp(), cpp: () => cpp(), h: () => cpp(),
     cs: () => csharp(),
+    scala: () => new LanguageSupport(StreamLanguage.define(scala)),
+    kt: () => new LanguageSupport(StreamLanguage.define(kotlin)),
+    go: () => new LanguageSupport(StreamLanguage.define(go)),
+    rb: () => new LanguageSupport(StreamLanguage.define(ruby)),
+    swift: () => new LanguageSupport(StreamLanguage.define(swift)),
     rs: () => rust(), rust: () => rust(),
     json: () => json(),
     yaml: () => yaml(), yml: () => yaml(),
