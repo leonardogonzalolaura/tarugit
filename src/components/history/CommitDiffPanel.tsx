@@ -96,16 +96,22 @@ export function CommitDiffPanel({ commit, fileDiffs, repoPath, showFileHistory =
                 <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/>
               </svg>
             </button>
-            <button className="hds-dc-copy" onClick={() => setShowInconsistencyChecker(true)} title="Revisar inconsistencias">
-              <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
-                <path d="M6.5 1a5.5 5.5 0 1 0 3.38 9.82l2.65 2.65a.75.75 0 1 0 1.06-1.06l-2.65-2.65A5.5 5.5 0 0 0 6.5 1Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
-                <path d="M6.5 4a.5.5 0 0 1 .5.5v1.5H8.5a.5.5 0 0 1 0 1H7v1.5a.5.5 0 0 1-1 0V7H4.5a.5.5 0 0 1 0-1H6V4.5a.5.5 0 0 1 .5-.5Z"/>
-              </svg>
-            </button>
           </span>
           <span className="hds-commit-meta">👤 {commit.author}</span>
           <span className="hds-commit-meta">{formatDate(commit.timestamp)}</span>
         </div>
+
+        <button
+          className="hds-inconsistency-btn"
+          onClick={() => setShowInconsistencyChecker(true)}
+          title="Analizar los archivos del commit en busca de declaraciones y líneas duplicadas"
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+            <path d="M6.5 1a5.5 5.5 0 1 0 3.38 9.82l2.65 2.65a.75.75 0 1 0 1.06-1.06l-2.65-2.65A5.5 5.5 0 0 0 6.5 1Zm0 1.5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
+            <path d="M6.5 4a.5.5 0 0 1 .5.5v1.5H8.5a.5.5 0 0 1 0 1H7v1.5a.5.5 0 0 1-1 0V7H4.5a.5.5 0 0 1 0-1H6V4.5a.5.5 0 0 1 .5-.5Z"/>
+          </svg>
+          <span>Revisar inconsistencias</span>
+        </button>
       </div>
       <div className="history-diff-split"
         onMouseMove={onMouseMove}

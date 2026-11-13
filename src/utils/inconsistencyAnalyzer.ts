@@ -65,6 +65,71 @@ function isStructuralLine(trimmed: string): boolean {
   return false;
 }
 
+interface JsxScanState {
+  /** Estamos dentro de una etiqueta JSX aún sin cerrar (`<button` …). */
+  inTag: boolean;
+  /** Profundidad de `{ … }` dentro de atributos (`onClick={() => …}`). */
+  exprDepth: number;
+}
+
+/**
+ * Marca si la línea forma parte de markup JSX/HTML: una etiqueta completa,
+ * el inicio de una etiqueta multilínea (`<button`) o sus atributos.
+ * Esas líneas se repiten legítimamente entre hermanos y no deben alertarse.
+ */
+function scanJsxLine(line: string, state: JsxScanState, continued: boolean): boolean {
+  if (continued) return false;
+
+  let isTagLine = state.inTag;
+  let i = 0;
+
+  while (i < line.length) {
+    const ch = line[i];
+
+    if (state.inTag) {
+      isTagLine = true;
+      if (ch === '/' && line[i + 1] === '/') break;
+      if (ch === '"' || ch === "'") { i = skipQuoted(line, i, ch); continue; }
+      if (ch === '{') { state.exprDepth++; i++; continue; }
+      if (ch === '}') { state.exprDepth = Math.max(0, state.exprDepth - 1); i++; continue; }
+      if (ch === '>' && state.exprDepth === 0) { state.inTag = false; i++; continue; }
+      i++;
+      continue;
+    }
+
+    if (ch === '/' && line[i + 1] === '/') break;
+    if (ch === '"' || ch === "'") { i = skipQuoted(line, i, ch); continue; }
+    if (ch === '`') {
+      const end = line.indexOf('`', i + 1);
+      i = end === -1 ? line.length : end + 1;
+      continue;
+    }
+
+    if (ch === '<' && /[A-Za-z/>]/.test(line[i + 1] ?? '')) {
+      // Solo tratamos `<` como inicio de JSX en posiciones plausibles
+      // (inicio de línea, tras `(`, `{`, `=`, `=>`, `&&`, `,`…), para no
+      // confundir comparaciones (`a < b`) con etiquetas.
+      const before = line.slice(0, i).trimEnd();
+      const prevCh = before.slice(-1);
+      const prevWord = before.match(/(\w+)$/)?.[1];
+      const jsxPosition =
+        before.length === 0 ||
+        /[([{=,:?&|>+!]/.test(prevCh) ||
+        prevWord === 'return' ||
+        prevWord === 'yield';
+
+      if (jsxPosition) {
+        state.inTag = true;
+        state.exprDepth = 0;
+        isTagLine = true;
+      }
+    }
+    i++;
+  }
+
+  return isTagLine;
+}
+
 function leadingIndent(line: string): number {
   let indent = 0;
   for (const ch of line) {
@@ -85,6 +150,40 @@ const CONTROL_ONLY = /^(?:else|elif|try|finally|do|default|begin|end|commit|roll
 const CONTROL_HEADER = /^(?:if|elif|else|for|foreach|while|do|try|catch|finally|switch|match|case|default|loop|guard)\b/;
 const SQL_NOISE = /^(?:commit|rollback|begin(?:\s+transaction)?|end(?:\s+transaction)?|go)\s*;?$/i;
 
+// Prefijos que indican declaración o control de flujo: no son asignaciones
+// simples, y ya se cubren (o se ignoran) por otras vías.
+const NON_ASSIGNMENT_PREFIX = /^(?:val|var|const|let|def|class|object|trait|type|import|from|using|interface|enum|readonly|public|private|protected|internal|static|async|function|export|return|throw|if|elif|else|for|foreach|while|do|try|catch|finally|switch|match|case|default|new|yield|await|break|continue|goto|pass|select|update|insert|delete|with)\b/i;
+
+/** Índice del `=` de asignación, ignorando `==`, `===`, `=>`, `<=`, `>=`, `!=`. */
+function assignmentOperatorIndex(line: string): number {
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] !== '=') continue;
+    const prev = line[i - 1];
+    const next = line[i + 1];
+    if (next === '=' || next === '>') continue;
+    if (prev === '=' || prev === '!' || prev === '<' || prev === '>') continue;
+    return i;
+  }
+  return -1;
+}
+
+// Solo las asignaciones aportan como "línea duplicada": `campo = valor`,
+// `this.campo = valor`, `a.b[c] = valor`, argumentos nombrados multilínea…
+// Llamadas (`foo(...)`), control de flujo y markup se ignoran para no generar ruido.
+function isAssignmentStatement(line: string): boolean {
+  if (NON_ASSIGNMENT_PREFIX.test(line)) return false;
+
+  const eq = assignmentOperatorIndex(line);
+  if (eq === -1) return false;
+
+  // Operador compuesto (`x += 1`): el lado izquierdo real es `x`.
+  const left = line.slice(0, eq).replace(/[+\-*/%&|^]$/, '').trim();
+  const right = line.slice(eq + 1).trim();
+  if (!right) return false;
+
+  return /^(?:this|self|super|[A-Za-z_$][\w$]*)(?:\s*(?:\.\s*[A-Za-z_$][\w$]*|\[[^\]]*\]))*(?:\s*:\s*.+)?$/.test(left);
+}
+
 function isDuplicateLineCandidate(line: string, lang: Language): boolean {
   const normalized = normalizeStatement(line);
   // Evita ruido de líneas demasiado cortas (`pass`, `GO`, `x = 1`…)
@@ -93,7 +192,8 @@ function isDuplicateLineCandidate(line: string, lang: Language): boolean {
   // Cabeceras de bloque: `if (...) {`, `for x in y:`, etc.
   if (CONTROL_HEADER.test(normalized) && /[{:]\s*$/.test(normalized)) return false;
   if (lang === 'sql' && SQL_NOISE.test(normalized)) return false;
-  return true;
+  // Solo asignaciones: evita marcar `useEffect(() => {`, `return (`, `foo();`…
+  return isAssignmentStatement(normalized);
 }
 
 // Líneas que continúan la firma/cabecera anterior y por tanto NO cierran
@@ -253,6 +353,41 @@ function skipQuoted(line: string, start: number, quote: string): number {
   return i;
 }
 
+// ¿El `/` en `start` inicia un literal de regex y no una división?
+// Solo cuenta en posiciones donde un valor no puede terminar: inicio de línea,
+// tras operadores/paréntesis/coma, o tras palabras clave como `return`.
+function isRegexStart(line: string, start: number): boolean {
+  const before = line.slice(0, start).trimEnd();
+  if (before.length === 0) return true;
+  const prevChar = before[before.length - 1];
+  if (/[([{,;:=!&|?+\-*%^~]/.test(prevChar)) return true;
+  const prevWord = before.match(/([A-Za-z_$][\w$]*)$/)?.[1];
+  return (
+    prevWord !== undefined &&
+    /^(?:return|case|typeof|instanceof|in|of|new|delete|void|yield|await|do|else)$/.test(prevWord)
+  );
+}
+
+// Salta un literal de regex (`/.../flags`), respetando escapes y clases `[...]`
+// donde `/` no cierra el literal. Evita contar `{`, `}` o `(` del regex.
+function skipRegex(line: string, start: number): number {
+  let i = start + 1;
+  let inClass = false;
+  while (i < line.length) {
+    const ch = line[i];
+    if (ch === '\\') { i += 2; continue; }
+    if (ch === '[') { inClass = true; i++; continue; }
+    if (ch === ']') { inClass = false; i++; continue; }
+    if (ch === '/' && !inClass) {
+      i++;
+      while (i < line.length && /[a-z]/i.test(line[i])) i++;
+      return i;
+    }
+    i++;
+  }
+  return i;
+}
+
 interface BraceCount {
   open: number;
   close: number;
@@ -304,6 +439,12 @@ function createBraceCounter(lang: Language) {
 
       if (ch === '/' && next === '/') break;
       if (ch === '/' && next === '*') { inBlockComment = true; i += 2; continue; }
+
+      // Literales de regex (solo JS/TS): sus `{`, `}`, `(` y `)` no cuentan
+      if (lang === 'typescript' && ch === '/' && isRegexStart(line, i)) {
+        i = skipRegex(line, i);
+        continue;
+      }
 
       if (supportsTripleQuotes && line.startsWith('"""', i)) {
         tripleDelimiter = '"""';
@@ -418,6 +559,8 @@ export function analyzeInconsistencies(content: string, filePath: string): Incon
 
   const declarationMap = new Map<string, DeclarationGroup>();
   const statementMap   = new Map<string, StatementGroup>();
+  // Solo relevante en TSX/JSX: permite ignorar etiquetas y atributos multilínea
+  const jsxState: JsxScanState = { inTag: false, exprDepth: 0 };
 
   const currentScopeId = () => scopeStack[scopeStack.length - 1].id;
 
@@ -449,6 +592,8 @@ export function analyzeInconsistencies(content: string, filePath: string): Incon
     const { open, close, minDelta, parenEvents, continued } = countBraces(lineContent);
     // Línea que no es código real: vacía, comentario o dentro de un string multilínea
     const ignorable = blank || comment || continued;
+    // Etiquetas JSX y sus atributos (incluidas las multilínea): no son código duplicable
+    const jsxTagLine = lang === 'typescript' && scanJsxLine(lineContent, jsxState, continued);
 
     // ---- 1) Cerrar scopes de indentación que terminan en esta línea ----
     if (usesIndentScopes && !ignorable && !isContinuationLine(trimmed)) {
@@ -460,7 +605,7 @@ export function analyzeInconsistencies(content: string, filePath: string): Incon
     }
 
     // ---- 2) Procesar declaraciones / statements de la línea ----
-    if (!ignorable && !isStructuralLine(trimmed)) {
+    if (!ignorable && !jsxTagLine && !isStructuralLine(trimmed)) {
       const scopeId = currentScopeId();
       const expressionId = expressionStack.length > 0
         ? expressionStack[expressionStack.length - 1]
